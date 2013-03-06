@@ -1,0 +1,23 @@
+-include ./configs/$(PLATFORM_CHIP)-variables.mk
+
+ZLIB_NAME := zlib
+ZLIB_TGZ := src/$(ZLIB_NAME)-$(ZLIB_VERSION).tar.gz
+ZLIB_TARGET_BUILD_DIR := $(PLATFORM_BUILD_DIR)/$(ZLIB_NAME)-$(ZLIB_VERSION)
+
+
+.PHONY: extract all
+
+
+all: extract
+	@echo "building zlib for target device..."
+	mkdir -p $(ZLIB_TARGET_BUILD_DIR)
+	@cd $(ZLIB_TARGET_BUILD_DIR); \
+	cmake -DCMAKE_INSTALL_PREFIX=$(PLATFORM_STAGING_DIR) -DINSTALL_PREFIX=$(PLATFORM_STAGING_DIR) -DINSTALL_PKGCONFIG_DIR=$(PLATFORM_STAGING_DIR)/lib/pkgconfig -DCMAKE_TOOLCHAIN_FILE=$(PKG_DIR)/$(ZLIB_NAME)/crosscompile.cmake -DPLATFORM_CHIP=$(PLATFORM_CHIP) $(EXTRACT_DIR)/$(ZLIB_NAME)-$(ZLIB_VERSION)
+	@cd $(ZLIB_TARGET_BUILD_DIR); make
+	@cd $(ZLIB_TARGET_BUILD_DIR); make install
+
+extract: $(EXTRACT_DIR)/$(ZLIB_NAME)-$(ZLIB_VERSION)
+
+$(EXTRACT_DIR)/$(ZLIB_NAME)-$(ZLIB_VERSION):
+	@tar zxvf $(ZLIB_TGZ)  -C $(EXTRACT_DIR)
+
