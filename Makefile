@@ -17,23 +17,21 @@ else
 	@echo "building libraries for [$(TARGET_ARCH)]"
 endif
 
-host:
-	@if [ -f $(HOST_STAGING_DIR)/.completed ]; then \
-		echo "skipping host staging step"; \
-	else \
-		echo "preparing to host libraries"; \
-		make -f pacakges/zlib/zlib-host.mk; \
-		make -f pacakges/libffi/libffi-host.mk; \
-		make -f pacakges/glib/glib-host.mk; \
-	fi 
-	
+host: $(HOST_STAGING_DIR)/.completed
+
+$(HOST_STAGING_DIR)/.completed:
+	@echo "preparing to host libraries"; 
+	make -f packages/libffi/libffi-host.mk; 
+	make -f packages/glib/glib-host.mk; 
 	@echo -e "\033[32m============================================ "
 	@echo -e " please, set PATH to build target libaries "
 	@echo -e " export PATH=""$$""PATH:$(HOST_STAGING_DIR)/bin"
 	@echo -e "============================================\033[0m "
+	@touch $(HOST_STAGING_DIR)/.completed
+	@exit 1;
 
 target:	$(PACKAGES)
 
 $(PACKAGES):
-	@make -f packages/$(PACKAGES)/$(PACKAGES).mk
+	@make -f packages/$@/$@.mk
 

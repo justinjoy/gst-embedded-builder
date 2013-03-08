@@ -23,6 +23,7 @@ $(GLIB_HOST_BUILD_DIR)/.config:
 		CFLAGS="$(GLIB_CFLAGS)" \
 		LDFLAGS="$(GLIB_LDFLAGS)" \
 		--enable-debug=yes \
+		--disable-modular-tests \
 		--prefix=$(HOST_STAGING_DIR) 
 	touch $@
 
