@@ -1,0 +1,30 @@
+diff -Naur gst-libav-1.0.5.orig/configure gst-libav-1.0.5/configure
+--- gst-libav-1.0.5.orig/configure	2013-01-05 00:08:27.000000000 +0900
++++ gst-libav-1.0.5/configure	2013-03-07 09:47:33.682102000 +0900
+@@ -17118,26 +17118,6 @@
+       ;;
+   esac
+ 
+-  if test x"$AR" != x; then
+-    emblibav_configure_args="$emblibav_configure_args --ar=\\\"\\\$AR\\\""
+-  fi
+-
+-  if test x"$AS" != x; then
+-    emblibav_configure_args="$emblibav_configure_args --as=\\\"\\\$AS\\\""
+-  fi
+-
+-  if test x"$CC" != x; then
+-    emblibav_configure_args="$emblibav_configure_args --cc=\\\"\\\$CC\\\""
+-  fi
+-
+-  if test x"$LD" != x; then
+-    emblibav_configure_args="$emblibav_configure_args --ld=\\\"\\\$CC\\\""
+-  fi
+-
+-  if test x"$NM" != x; then
+-    emblibav_configure_args="$emblibav_configure_args --nm=\\\"\\\$NM\\\""
+-  fi
+-
+     LIBAV_OPTS="(cd $srcdir/gst-libs/ext/libav && ./configure --help)"
+   # Let's check if we can disable the building of the libav binary
+   can_disable=`echo "$LIBAV_OPTS" | grep 'disable-ffmpeg'`
