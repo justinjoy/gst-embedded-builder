@@ -28,8 +28,8 @@ install:
 	cp -f $(EXTRACT_DIR)/$(BZIP2_NAME)-$(BZIP2_VERSION)/bzlib.h $(PLATFORM_STAGING_DIR)/include
 	cp -a $(BZIP2_TARGET_BUILD_DIR)/libbz2.so.1.0.6 $(PLATFORM_STAGING_DIR)/lib
 	cd $(PLATFORM_STAGING_DIR)/lib; \
-	ln -s libbz2.so.1.0.6 libbz2.so; \
-	ln -s libbz2.so.1.0.6 libbz2.so.1.0
+	ln -sf libbz2.so.1.0.6 libbz2.so; \
+	ln -sf libbz2.so.1.0.6 libbz2.so.1.0
 	
 
 build: $(OBJS)

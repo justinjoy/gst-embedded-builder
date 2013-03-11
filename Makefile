@@ -1,6 +1,9 @@
 -include configs/$(PLATFORM_CHIP)-variables.mk
 
-PACKAGES= zlib libffi glib libogg libvorbis bzip2 gstreamer gst-plugins-base gst-libav
+PACKAGES= zlib libffi glib libogg libvorbis bzip2 \
+	gstreamer gst-plugins-base gst-libav \
+	libxml2 sqlite libsoup \
+	gst-plugins-good 
 
 all: env host target
 

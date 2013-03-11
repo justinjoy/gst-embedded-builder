@@ -1,0 +1,37 @@
+-include ./configs/$(PLATFORM_CHIP)-variables.mk
+
+
+GSTUGLY_NAME := gst-plugins-ugly
+GSTUGLY_PKG := src/$(GSTUGLY_NAME)-$(GSTUGLY_VERSION).tar.xz
+
+GSTUGLY_TARGET_BUILD_DIR := $(PLATFORM_BUILD_DIR)/$(GSTUGLY_NAME)-$(GSTUGLY_VERSION)
+
+GSTUGLY_CFLAGS = -I$(PLATFORM_STAGING_DIR)/include
+GSTUGLY_LDFLAGS = -L$(PLATFORM_STAGING_DIR)/lib
+
+.PHONY: extract all
+
+all: extract configure
+	@echo "building gst-plugins-ugly ..."
+	cd $(GSTUGLY_TARGET_BUILD_DIR); make
+	cd $(GSTUGLY_TARGET_BUILD_DIR); make install
+
+configure: $(GSTUGLY_TARGET_BUILD_DIR)/.config
+
+$(GSTUGLY_TARGET_BUILD_DIR)/.config:
+	mkdir -p $(GSTUGLY_TARGET_BUILD_DIR)
+	cd $(GSTUGLY_TARGET_BUILD_DIR); \
+	$(EXTRACT_DIR)/$(GSTUGLY_NAME)-$(GSTUGLY_VERSION)/configure \
+		PKG_CONFIG_PATH="$(PLATFORM_STAGING_DIR)/lib/pkgconfig" \
+		CFLAGS="$(GSTUGLY_CFLAGS)" \
+		LDFLAGS="$(GSTUGLY_LDFLAGS)" \
+		--host=$(TARGET_ARCH) \
+		--prefix=$(PLATFORM_STAGING_DIR)
+	touch $@
+
+extract: $(EXTRACT_DIR)/$(GSTUGLY_NAME)-$(GSTUGLY_VERSION)
+
+$(EXTRACT_DIR)/$(GSTUGLY_NAME)-$(GSTUGLY_VERSION):
+	mkdir -p $(EXTRACT_DIR)/$(GSTUGLY_NAME)-$(GSTUGLY_VERSION)
+	xz -dc $(GSTUGLY_PKG) | tar xvf - -C $(EXTRACT_DIR)
+

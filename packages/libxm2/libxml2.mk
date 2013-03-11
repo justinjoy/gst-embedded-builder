@@ -1,0 +1,34 @@
+-include ./configs/$(PLATFORM_CHIP)-variables.mk
+
+
+LIBXML2_NAME := libxml2
+LIBXML2_PKG := src/$(LIBXML2_NAME)-$(LIBXML2_VERSION).tar.gz
+
+LIBXML2_TARGET_BUILD_DIR := $(PLATFORM_BUILD_DIR)/$(LIBXML2_NAME)-$(LIBXML2_VERSION)
+
+.PHONY: extract all
+
+all: extract configure
+	@echo "building libxml2 ..."
+	cd $(LIBXML2_TARGET_BUILD_DIR); make
+	cd $(LIBXML2_TARGET_BUILD_DIR); make install
+
+configure: $(LIBXML2_TARGET_BUILD_DIR)/.config
+
+$(LIBXML2_TARGET_BUILD_DIR)/.config:
+	mkdir -p $(LIBXML2_TARGET_BUILD_DIR)
+	cd $(LIBXML2_TARGET_BUILD_DIR); \
+	$(EXTRACT_DIR)/$(LIBXML2_NAME)-$(LIBXML2_VERSION)/configure \
+		PKG_CONFIG_PATH="$(PLATFORM_STAGING_DIR)/lib/pkgconfig" \
+		CFLAGS="$(LIBXML2_CFLAGS)" \
+		LDFLAGS="$(LIBXML2_LDFLAGS)" \
+		--host=$(TARGET_ARCH) \
+		--prefix=$(PLATFORM_STAGING_DIR)  
+	touch $@
+
+extract: $(EXTRACT_DIR)/$(LIBXML2_NAME)-$(LIBXML2_VERSION)
+
+$(EXTRACT_DIR)/$(LIBXML2_NAME)-$(LIBXML2_VERSION):
+	mkdir -p $(EXTRACT_DIR)/$(LIBXML2_NAME)-$(LIBXML2_VERSION)
+	tar xvfz $(LIBXML2_PKG) -C $(EXTRACT_DIR)
+
