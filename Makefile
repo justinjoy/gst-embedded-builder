@@ -1,4 +1,4 @@
--include configs/$(PLATFORM_CHIP)-variables.mk
+-include configs/$(TARGET_PLATFORM_NAME)-variables.mk
 
 PACKAGES= zlib libffi glib libogg libvorbis bzip2 \
 	gstreamer gst-plugins-base gst-libav \
@@ -28,7 +28,7 @@ $(HOST_STAGING_DIR)/.completed:
 	make -f packages/glib/glib-host.mk; 
 	@echo -e "\033[32m============================================ "
 	@echo -e " please, set PATH to build target libaries "
-	@echo -e " export PATH=""$$""PATH:$(HOST_STAGING_DIR)/bin"
+	@echo -e " $(HOST_STAGING_DIR)/bin: export PATH=""$$""PATH "
 	@echo -e "============================================\033[0m "
 	@touch $(HOST_STAGING_DIR)/.completed
 	@exit 1;

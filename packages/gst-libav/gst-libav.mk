@@ -1,4 +1,4 @@
--include ./configs/$(PLATFORM_CHIP)-variables.mk
+-include ./configs/$(TARGET_PLATFORM_NAME)-variables.mk
 
 
 GSTLIBAV_NAME := gst-libav

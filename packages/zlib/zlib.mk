@@ -1,4 +1,4 @@
--include ./configs/$(PLATFORM_CHIP)-variables.mk
+-include ./configs/$(TARGET_PLATFORM_NAME)-variables.mk
 
 ZLIB_NAME := zlib
 ZLIB_TGZ := src/$(ZLIB_NAME)-$(ZLIB_VERSION).tar.gz
