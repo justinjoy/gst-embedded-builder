@@ -3,7 +3,8 @@
 PACKAGES= zlib libffi glib libogg libvorbis bzip2 \
 	gstreamer gst-plugins-base gst-libav \
 	libxml2 sqlite libsoup \
-	gst-plugins-good 
+	libpng gst-plugins-good gst-plugins-bad \
+	gst-plugins-ugly 
 
 all: env host target
 
@@ -36,5 +37,6 @@ $(HOST_STAGING_DIR)/.completed:
 target:	$(PACKAGES)
 
 $(PACKAGES):
+	@mkdir -p unpack
 	@make -f packages/$@/$@.mk
 
