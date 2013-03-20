@@ -30,7 +30,8 @@ $(GSTGOOD_TARGET_BUILD_DIR)/.config:
 		--enable-bz2 \
 		--disable-gst_v4l2  \
 		--disable-x \
-		--disable-gdk_pixbuf 
+		--disable-gdk_pixbuf \
+		--disable-libcaca
 	touch $@
 
 extract: $(EXTRACT_DIR)/$(GSTGOOD_NAME)-$(GSTGOOD_VERSION)
