@@ -29,7 +29,7 @@ $(HOST_STAGING_DIR)/.completed:
 	make -f packages/glib/glib-host.mk; 
 	@echo -e "\033[32m============================================ "
 	@echo -e " please, set PATH to build target libaries "
-	@echo -e " $(HOST_STAGING_DIR)/bin: export PATH=""$$""PATH "
+	@echo -e " export PATH=$(HOST_STAGING_DIR)/bin:""$$""PATH "
 	@echo -e "============================================\033[0m "
 	@touch $(HOST_STAGING_DIR)/.completed
 	@exit 1;
