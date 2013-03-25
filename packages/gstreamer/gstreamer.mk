@@ -24,7 +24,6 @@ $(GSTREAMER_TARGET_BUILD_DIR)/.config:
 		LDFLAGS="$(GSTREAMER_LDFLAGS)" \
 		--host=$(TARGET_ARCH) \
 		--prefix=$(PLATFORM_STAGING_DIR) \
-		--disable-check \
 		--disable-tests \
 		--disable-examples \
 		--disable-introspection

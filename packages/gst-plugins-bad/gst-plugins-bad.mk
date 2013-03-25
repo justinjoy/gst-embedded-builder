@@ -27,6 +27,10 @@ $(GSTBAD_TARGET_BUILD_DIR)/.config:
 		LDFLAGS="$(GSTBAD_LDFLAGS)" \
 		--host=$(TARGET_ARCH) \
 		--prefix=$(PLATFORM_STAGING_DIR) \
+		--disable-rtmp \
+		--disable-sdltest \
+		--disable-coloreffects \
+		--disable-examples \
 		--enable-bz2 
 	touch $@
 

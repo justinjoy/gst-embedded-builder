@@ -3,7 +3,8 @@
 PACKAGES= zlib libffi glib libogg libvorbis bzip2 \
 	gstreamer gst-plugins-base gst-libav \
 	libxml2 sqlite gmp nettle gnutls libtasn1 p11-kit glib-networking libsoup \
-	libpng gst-plugins-good gst-plugins-bad \
+	libpng gst-plugins-good \
+	libcurl rtmpdump gst-plugins-bad \
 	gst-plugins-ugly
 
 all: env host target
