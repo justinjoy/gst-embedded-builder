@@ -31,7 +31,8 @@ $(GSTGOOD_TARGET_BUILD_DIR)/.config:
 		--disable-gst_v4l2  \
 		--disable-x \
 		--disable-gdk_pixbuf \
-		--disable-libcaca
+		--disable-libcaca \
+		--disable-pulse 
 	touch $@
 
 extract: $(EXTRACT_DIR)/$(GSTGOOD_NAME)-$(GSTGOOD_VERSION)
