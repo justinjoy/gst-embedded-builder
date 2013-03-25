@@ -24,7 +24,7 @@ $(GNUTLS_TARGET_BUILD_DIR)/.config:
 		--host=$(TARGET_ARCH) \
 		--prefix=$(PLATFORM_STAGING_DIR) \
 		--with-libnettle-prefix=$(PLATFORM_STAGING_DIR) \
-		--disable-crywrap
+		--disable-crywrap 
 	touch $@
 
 extract: $(EXTRACT_DIR)/$(GNUTLS_NAME)-$(GNUTLS_VERSION)

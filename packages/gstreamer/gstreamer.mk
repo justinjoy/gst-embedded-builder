@@ -10,7 +10,7 @@ GSTREAMER_TARGET_BUILD_DIR := $(PLATFORM_BUILD_DIR)/$(GSTREAMER_NAME)-$(GSTREAME
 
 all: extract configure
 	@echo "building gstreamer..."
-	cd $(GSTREAMER_TARGET_BUILD_DIR); make
+	cd $(GSTREAMER_TARGET_BUILD_DIR); make CC=$(TARGET_ARCH)-gcc
 	cd $(GSTREAMER_TARGET_BUILD_DIR); make install
 
 configure: $(GSTREAMER_TARGET_BUILD_DIR)/.config
@@ -23,7 +23,11 @@ $(GSTREAMER_TARGET_BUILD_DIR)/.config:
 		CFLAGS="$(GSTREAMER_CFLAGS)" \
 		LDFLAGS="$(GSTREAMER_LDFLAGS)" \
 		--host=$(TARGET_ARCH) \
-		--prefix=$(PLATFORM_STAGING_DIR) 
+		--prefix=$(PLATFORM_STAGING_DIR) \
+		--disable-check \
+		--disable-tests \
+		--disable-examples \
+		--disable-introspection
 	touch $@
 
 extract: $(EXTRACT_DIR)/$(GSTREAMER_NAME)-$(GSTREAMER_VERSION)

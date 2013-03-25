@@ -1,0 +1,39 @@
+-include ./configs/$(TARGET_PLATFORM_NAME)-variables.mk
+
+LIBTASN1_NAME := libtasn1
+LIBTASN1_PKG := src/$(LIBTASN1_NAME)-$(LIBTASN1_VERSION).tar.gz
+LIBTASN1_DOWNLOAD := http://ftp.gnu.org/gnu/libtasn1/$(LIBTASN1_NAME)-$(LIBTASN1_VERSION).tar.gz
+
+LIBTASN1_TARGET_BUILD_DIR := $(PLATFORM_BUILD_DIR)/$(LIBTASN1_NAME)-$(LIBTASN1_VERSION)
+
+.PHONY: extract all
+
+all: download extract configure
+	@echo "building libtasn1..."
+	cd $(LIBTASN1_TARGET_BUILD_DIR); make
+	cd $(LIBTASN1_TARGET_BUILD_DIR); make install
+
+download: $(LIBTASN1_PKG)
+
+$(LIBTASN1_PKG):
+	wget $(LIBTASN1_DOWNLOAD) -P src
+
+configure: $(LIBTASN1_TARGET_BUILD_DIR)/.config
+
+$(LIBTASN1_TARGET_BUILD_DIR)/.config:
+	mkdir -p $(LIBTASN1_TARGET_BUILD_DIR)
+	cd $(LIBTASN1_TARGET_BUILD_DIR); \
+	$(EXTRACT_DIR)/$(LIBTASN1_NAME)-$(LIBTASN1_VERSION)/configure \
+		PKG_CONFIG_PATH="$(PLATFORM_STAGING_DIR)/lib/pkgconfig" \
+		CFLAGS="$(LIBTASN1_CFLAGS)" \
+		LDFLAGS="$(LIBTASN1_LDFLAGS)" \
+		--host=$(TARGET_ARCH) \
+		--prefix=$(PLATFORM_STAGING_DIR)
+	touch $@
+
+extract: $(EXTRACT_DIR)/$(LIBTASN1_NAME)-$(LIBTASN1_VERSION)
+
+$(EXTRACT_DIR)/$(LIBTASN1_NAME)-$(LIBTASN1_VERSION):
+	mkdir -p $(EXTRACT_DIR)/$(LIBTASN1_NAME)-$(LIBTASN1_VERSION)
+	tar zxvf $(LIBTASN1_PKG) -C $(EXTRACT_DIR)
+

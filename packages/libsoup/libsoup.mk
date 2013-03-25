@@ -24,7 +24,8 @@ $(LIBSOUP_TARGET_BUILD_DIR)/.config:
 		LDFLAGS="$(LIBSOUP_LDFLAGS)" \
 		--host=$(TARGET_ARCH) \
 		--prefix=$(PLATFORM_STAGING_DIR)  \
-		--without-gnome 
+		--without-gnome \
+		--enable-introspection=no
 	touch $@
 
 extract: $(EXTRACT_DIR)/$(LIBSOUP_NAME)-$(LIBSOUP_VERSION)

@@ -26,7 +26,8 @@ $(GSTBASE_TARGET_BUILD_DIR)/.config:
 		--prefix=$(PLATFORM_STAGING_DIR)  \
 		--disable-x \
 		--disable-xvideo \
-		--disable-alsa 
+		--disable-alsa \
+		--disable-introspection
 	touch $@
 
 extract: $(EXTRACT_DIR)/$(GSTBASE_NAME)-$(GSTBASE_VERSION)
