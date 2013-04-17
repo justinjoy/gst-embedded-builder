@@ -161,6 +161,14 @@ typedef enum {
   GST_EVENT_RECONFIGURE           = GST_EVENT_MAKE_TYPE (240, FLAG(UPSTREAM)),
   GST_EVENT_TOC_SELECT            = GST_EVENT_MAKE_TYPE (250, FLAG(UPSTREAM)),
 
+#if 1
+	GST_EVENT_GET_INDEX_ENOUGH_DATA_FOR_ASF	= GST_EVENT_MAKE_TYPE (330, FLAG(UPSTREAM)),
+	GST_EVENT_GET_INDEX_MORE_DATA_NEED_FOR_ASF		= GST_EVENT_MAKE_TYPE (340, FLAG(UPSTREAM)),
+	GST_EVENT_IM_MMS_PROTOCOL								= GST_EVENT_MAKE_TYPE (350, FLAG(BOTH)),
+	GST_EVENT_GET_INDEX_START_FOR_ASF	= GST_EVENT_MAKE_TYPE (360, FLAG(UPSTREAM)),
+	GST_EVENT_GET_INDEX_END_FOR_ASF	= GST_EVENT_MAKE_TYPE (370, FLAG(DOWNSTREAM)),
+#endif
+
   /* custom events start here */
   GST_EVENT_CUSTOM_UPSTREAM          = GST_EVENT_MAKE_TYPE (270, FLAG(UPSTREAM)),
   GST_EVENT_CUSTOM_DOWNSTREAM        = GST_EVENT_MAKE_TYPE (280, FLAG(DOWNSTREAM) | FLAG(SERIALIZED)),
@@ -168,6 +176,7 @@ typedef enum {
   GST_EVENT_CUSTOM_DOWNSTREAM_STICKY = GST_EVENT_MAKE_TYPE (300, FLAG(DOWNSTREAM) | FLAG(SERIALIZED) | FLAG(STICKY) | FLAG(STICKY_MULTI)),
   GST_EVENT_CUSTOM_BOTH              = GST_EVENT_MAKE_TYPE (310, FLAG(BOTH) | FLAG(SERIALIZED)),
   GST_EVENT_CUSTOM_BOTH_OOB          = GST_EVENT_MAKE_TYPE (320, FLAG(BOTH))
+
 } GstEventType;
 #undef FLAG
 
@@ -545,6 +554,13 @@ void            gst_event_parse_toc_select      (GstEvent *event, gchar **uid);
 GstEvent*       gst_event_new_segment_done      (GstFormat format, gint64 position) G_GNUC_MALLOC;
 void            gst_event_parse_segment_done    (GstEvent *event, GstFormat *format, gint64 *position);
 
+#if 1
+GstEvent*				gst_event_new_get_index_enough_data_for_asf (void);
+GstEvent*				gst_event_new_get_index_more_data_need_for_asf (void);
+GstEvent*				gst_event_new_im_mms_protocol (void);
+GstEvent*				gst_event_new_get_index_start_for_asf (void);
+GstEvent*				gst_event_new_get_index_end_for_asf (void);
+#endif
 G_END_DECLS
 
 #endif /* __GST_EVENT_H__ */
