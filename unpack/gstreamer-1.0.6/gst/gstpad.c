@@ -4871,11 +4871,12 @@ flushing:
     if (need_unlock)
       GST_PAD_STREAM_UNLOCK (pad);
 #if 1
-		if (GST_EVENT_TYPE (event) == GST_EVENT_GET_INDEX_END_FOR_ASF) {
-			GST_CAT_INFO_OBJECT(GST_CAT_EVENT, pad, "this is special case for asf demux, Sending this event on flushing pad.");
-			gst_event_unref (event);
-			return TRUE;
-		}
+    if (GST_EVENT_TYPE (event) == GST_EVENT_GET_INDEX_END_FOR_ASF) {
+      GST_CAT_INFO_OBJECT (GST_CAT_EVENT, pad,
+          "this is special case for asf demux, Sending this event on flushing pad.");
+      gst_event_unref (event);
+      return TRUE;
+    }
 #endif
     GST_CAT_INFO_OBJECT (GST_CAT_EVENT, pad,
         "Received event on flushing pad. Discarding");

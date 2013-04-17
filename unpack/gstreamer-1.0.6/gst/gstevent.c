@@ -126,11 +126,12 @@ static GstEventQuarks event_quarks[] = {
   {GST_EVENT_RECONFIGURE, "reconfigure", 0},
   {GST_EVENT_TOC_SELECT, "toc-select", 0},
 #if 1
-	{GST_EVENT_GET_INDEX_ENOUGH_DATA_FOR_ASF, "get-index-enough-data-for-asf", 0},
-	{GST_EVENT_GET_INDEX_MORE_DATA_NEED_FOR_ASF, "get-index-more-data-need-for-asf", 0},
-	{GST_EVENT_IM_MMS_PROTOCOL, "mms-seek-for-DLNA", 0},
-	{GST_EVENT_GET_INDEX_START_FOR_ASF, "get-index-start-for-asf", 0},
-	{GST_EVENT_GET_INDEX_END_FOR_ASF, "get-index-end-for-asf", 0},
+  {GST_EVENT_GET_INDEX_ENOUGH_DATA_FOR_ASF, "get-index-enough-data-for-asf", 0},
+  {GST_EVENT_GET_INDEX_MORE_DATA_NEED_FOR_ASF,
+        "get-index-more-data-need-for-asf", 0},
+  {GST_EVENT_IM_MMS_PROTOCOL, "mms-seek-for-DLNA", 0},
+  {GST_EVENT_GET_INDEX_START_FOR_ASF, "get-index-start-for-asf", 0},
+  {GST_EVENT_GET_INDEX_END_FOR_ASF, "get-index-end-for-asf", 0},
 #endif
   {GST_EVENT_CUSTOM_UPSTREAM, "custom-upstream", 0},
   {GST_EVENT_CUSTOM_DOWNSTREAM, "custom-downstream", 0},
@@ -1617,7 +1618,7 @@ gst_event_parse_segment_done (GstEvent * event, GstFormat * format,
 GstEvent *
 gst_event_new_get_index_enough_data_for_asf (void)
 {
-	return gst_event_new_custom (GST_EVENT_GET_INDEX_ENOUGH_DATA_FOR_ASF, NULL);
+  return gst_event_new_custom (GST_EVENT_GET_INDEX_ENOUGH_DATA_FOR_ASF, NULL);
 }
 
 /**
@@ -1630,7 +1631,8 @@ gst_event_new_get_index_enough_data_for_asf (void)
 GstEvent *
 gst_event_new_get_index_more_data_need_for_asf (void)
 {
-	return gst_event_new_custom (GST_EVENT_GET_INDEX_MORE_DATA_NEED_FOR_ASF, NULL);
+  return gst_event_new_custom (GST_EVENT_GET_INDEX_MORE_DATA_NEED_FOR_ASF,
+      NULL);
 }
 
 /**
@@ -1643,7 +1645,7 @@ gst_event_new_get_index_more_data_need_for_asf (void)
 GstEvent *
 gst_event_new_im_mms_protocol (void)
 {
-	return gst_event_new_custom (GST_EVENT_IM_MMS_PROTOCOL, NULL);
+  return gst_event_new_custom (GST_EVENT_IM_MMS_PROTOCOL, NULL);
 }
 
 /**
@@ -1656,7 +1658,7 @@ gst_event_new_im_mms_protocol (void)
 GstEvent *
 gst_event_new_get_index_start_for_asf (void)
 {
-	return gst_event_new_custom (GST_EVENT_GET_INDEX_START_FOR_ASF, NULL);
+  return gst_event_new_custom (GST_EVENT_GET_INDEX_START_FOR_ASF, NULL);
 }
 
 /**
@@ -1669,7 +1671,7 @@ gst_event_new_get_index_start_for_asf (void)
 GstEvent *
 gst_event_new_get_index_end_for_asf (void)
 {
-	return gst_event_new_custom (GST_EVENT_GET_INDEX_END_FOR_ASF, NULL);
+  return gst_event_new_custom (GST_EVENT_GET_INDEX_END_FOR_ASF, NULL);
 }
 
 #endif
