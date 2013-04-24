@@ -85,7 +85,7 @@
 #define QTDEMUX_LEAP_YEARS_FROM_1904_TO_1970 17
 #define QTDEMUX_SECONDS_FROM_1904_TO_1970 (((1970 - 1904) * (guint64) 365 + \
     QTDEMUX_LEAP_YEARS_FROM_1904_TO_1970) * QTDEMUX_SECONDS_PER_DAY)
-
+#define INCLUDE_LMF
 GST_DEBUG_CATEGORY (qtdemux_debug);
 
 /*typedef struct _QtNode QtNode; */
@@ -386,6 +386,19 @@ GST_STATIC_PAD_TEMPLATE ("subtitle_%u",
     GST_PAD_SOMETIMES,
     GST_STATIC_CAPS_ANY);
 
+#ifdef INCLUDE_LMF
+#undef BUF_DBG
+#undef THUMBNAIL
+
+#ifdef THUMBNAIL
+enum
+{
+	PROP_O,
+	PROP_THUMBNAIL_MODE
+};
+#endif
+#endif
+
 #define gst_qtdemux_parent_class parent_class
 G_DEFINE_TYPE (GstQTDemux, gst_qtdemux, GST_TYPE_ELEMENT);
 
@@ -439,6 +452,16 @@ static gboolean qtdemux_parse_samples (GstQTDemux * qtdemux,
     QtDemuxStream * stream, guint32 n);
 static GstFlowReturn qtdemux_expose_streams (GstQTDemux * qtdemux);
 
+#ifdef INCLUDE_LMF
+/*For Thumbnail*/
+#ifdef THUMBNAIL
+static void gst_qtdemux_set_property(GObject* object, guint prop_id,
+	  const GValue* value, GParamSpec* pspec);
+static void gst_qtdemux_get_property(GObject* object, guint prop_id,
+	  GValue* value, GParamSpec* pspec);
+static void gst_qtdemux_find_thumbnail_property(GstQTDemux * demux);
+#endif
+#endif
 static void
 gst_qtdemux_class_init (GstQTDemuxClass * klass)
 {
@@ -451,6 +474,18 @@ gst_qtdemux_class_init (GstQTDemuxClass * klass)
   parent_class = g_type_class_peek_parent (klass);
 
   gobject_class->dispose = gst_qtdemux_dispose;
+
+#ifdef INCLUDE_LMF
+#ifdef THUMBNAIL
+  gobject_class->set_property = gst_qtdemux_set_property;
+  gobject_class->get_property = gst_qtdemux_get_property;
+
+  g_object_class_install_property(gobject_class, PROP_THUMBNAIL_MODE, 
+									   g_param_spec_boolean("thumbnail-mode", "Thumbnail mode",
+														   "Thumbnail mode", FALSE,
+														   G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+#endif
+#endif
 
   gstelement_class->change_state = GST_DEBUG_FUNCPTR (gst_qtdemux_change_state);
 #if 0
@@ -500,6 +535,11 @@ gst_qtdemux_init (GstQTDemux * qtdemux)
   qtdemux->got_moov = FALSE;
   qtdemux->mdatoffset = GST_CLOCK_TIME_NONE;
   qtdemux->mdatbuffer = NULL;
+#ifdef INCLUDE_LMF
+#ifdef THUMBNAIL
+  qtdemux->thumbnail_mode = FALSE;
+#endif
+#endif
   gst_segment_init (&qtdemux->segment, GST_FORMAT_TIME);
 
   GST_OBJECT_FLAG_SET (qtdemux, GST_ELEMENT_FLAG_INDEXABLE);
@@ -1472,6 +1512,14 @@ gst_qtdemux_handle_src_event (GstPad * pad, GstObject * parent,
   gboolean res = TRUE;
   GstQTDemux *qtdemux = GST_QTDEMUX (parent);
 
+#ifdef INCLUDE_LMF
+  GstEvent *seek_event;
+#endif
+
+  GST_DEBUG_OBJECT (qtdemux,
+        "Receive an event type %s: %p on src pad", GST_EVENT_TYPE_NAME(event), event);
+  
+
   switch (GST_EVENT_TYPE (event)) {
     case GST_EVENT_SEEK:
     {
@@ -1509,6 +1557,36 @@ gst_qtdemux_handle_src_event (GstPad * pad, GstObject * parent,
       res = FALSE;
       gst_event_unref (event);
       break;
+#ifdef INCLUDE_LMF	
+	/* Add a logic to extract thumbnail with no black image. wonho.chun 2012-10-23 */
+	case GST_EVENT_CUSTOM_UPSTREAM:
+	{
+	  if(qtdemux->thumbnail_mode)
+	  {
+		  GST_DEBUG_OBJECT(qtdemux, "########################################\n");
+		  GST_DEBUG_OBJECT(qtdemux, "###      RECEIVE UP STREAM EVENT     ###\n");
+		  GST_DEBUG_OBJECT(qtdemux, "########################################\n");
+
+		  GST_DEBUG_OBJECT(qtdemux, "Do Seek it for Thumbnail Ex.\n");
+
+		  seek_event = gst_event_new_seek(1.0, GST_FORMAT_TIME,
+		 							      GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_KEY_UNIT,
+										  GST_SEEK_TYPE_SET,
+										  qtdemux->segment.duration/4,
+										  GST_SEEK_TYPE_NONE, 0);
+			
+		  if (qtdemux->pullbased) {
+	        res = gst_qtdemux_do_seek (qtdemux, pad, seek_event);
+	      }else {
+	        GST_DEBUG_OBJECT (qtdemux, "ignoring seek in push mode in current state");
+	        res = FALSE;
+	      }
+	  }
+
+	  gst_event_unref (event);
+	  break;
+	}
+#endif
     default:
       res = gst_pad_event_default (pad, parent, event);
       break;
@@ -1971,6 +2049,19 @@ extract_initial_length_and_fourcc (const guint8 * data, guint size,
   fourcc = QT_FOURCC (data + 4);
   GST_DEBUG ("atom type %" GST_FOURCC_FORMAT, GST_FOURCC_ARGS (fourcc));
 
+#ifdef INCLUDE_LMF
+  if (!(fourcc == 0 && length == 0))
+  {
+	if (length == 0) {
+	length = G_MAXUINT32;
+	} else if (length == 1 && size >= 16) {
+	/* this means we have an extended size, which is the 64 bit value of
+	 * the next 8 bytes */
+	length = QT_UINT64 (data + 8);
+	GST_DEBUG ("length 0x%08" G_GINT64_MODIFIER "x", length);
+	}
+  }
+#else
   if (length == 0) {
     length = G_MAXUINT32;
   } else if (length == 1 && size >= 16) {
@@ -1979,6 +2070,8 @@ extract_initial_length_and_fourcc (const guint8 * data, guint size,
     length = QT_UINT64 (data + 8);
     GST_DEBUG ("length 0x%08" G_GINT64_MODIFIER "x", length);
   }
+#endif
+
 
   if (plength)
     *plength = length;
@@ -2698,6 +2791,11 @@ gst_qtdemux_loop_state_header (GstQTDemux * qtdemux)
   GstFlowReturn ret = GST_FLOW_OK;
   guint64 cur_offset = qtdemux->offset;
   GstMapInfo map;
+#ifdef INCLUDE_LMF
+#ifdef THUMBNAIL
+  gst_qtdemux_find_thumbnail_property(qtdemux);
+#endif
+#endif
 
   ret = gst_pad_pull_range (qtdemux->sinkpad, cur_offset, 16, &buf);
   if (G_UNLIKELY (ret != GST_FLOW_OK))
@@ -3633,6 +3731,10 @@ gst_qtdemux_decorate_and_push_buffer (GstQTDemux * qtdemux,
 {
   GstFlowReturn ret = GST_FLOW_OK;
 
+#ifdef BUF_DBG
+  guint8 *dbgbuf1;	// wonho.chun for debugging
+#endif
+
   if (G_UNLIKELY (stream->fourcc == FOURCC_rtsp)) {
     gchar *url;
     GstMapInfo map;
@@ -3736,6 +3838,21 @@ gst_qtdemux_decorate_and_push_buffer (GstQTDemux * qtdemux,
       ", duration %" GST_TIME_FORMAT " on pad %s", GST_TIME_ARGS (dts),
       GST_TIME_ARGS (pts), GST_TIME_ARGS (duration),
       GST_PAD_NAME (stream->pad));
+
+#ifdef INCLUDE_LMF
+#ifdef BUF_DBG	//wonho.chun for debugging
+  if (strstr(GST_PAD_NAME(stream->pad), "video"))
+  {
+	GstMapInfo map;
+
+	gst_buffer_map (buf, &map, GST_MAP_READ);
+	GST_ERROR_OBJECT (qtdemux, "buffer size = 0x%x", map.size);
+  	dbgbuf1 = map.data;
+  	GST_ERROR_OBJECT(qtdemux,"Before gst_pad_push ndata = %02X %02X %02X %02X\n",dbgbuf1[0], dbgbuf1[1], dbgbuf1[2], dbgbuf1[3]);
+    gst_buffer_unmap (buf, &map);
+  }
+#endif
+#endif
 
   ret = gst_pad_push (stream->pad, buf);
 
@@ -4238,6 +4355,12 @@ gst_qtdemux_chain (GstPad * sinkpad, GstObject * parent, GstBuffer * inbuf)
 
             demux->got_moov = TRUE;
 
+#ifdef INCLUDE_LMF
+#ifdef THUMBNAIL
+		gst_qtdemux_find_thumbnail_property(demux);
+#endif
+#endif
+
             /* prepare newsegment to send when streaming actually starts */
             if (!demux->pending_newsegment)
               demux->pending_newsegment =
@@ -4344,7 +4467,9 @@ gst_qtdemux_chain (GstPad * sinkpad, GstObject * parent, GstBuffer * inbuf)
         int i = -1;
         guint64 dts, pts, duration;
         gboolean keyframe;
-
+#ifdef BUF_DBG
+		guint8 *dbgbuf;	// wonho.chun for debugging
+#endif
         GST_DEBUG_OBJECT (demux,
             "BEGIN // in MOVIE for offset %" G_GUINT64_FORMAT, demux->offset);
 
@@ -4425,6 +4550,20 @@ gst_qtdemux_chain (GstPad * sinkpad, GstObject * parent, GstBuffer * inbuf)
         pts = QTSAMPLE_PTS (stream, sample);
         duration = QTSAMPLE_DUR_DTS (stream, sample, dts);
         keyframe = QTSAMPLE_KEYFRAME (stream, sample);
+
+#ifdef INCLUDE_LMF
+#ifdef BUF_DBG 	//wonho.chun for debugging
+		if (strstr(GST_PAD_NAME(stream->pad), "video"))
+		{
+		  GstMapInfo map;
+
+		  gst_buffer_map (outbuf, &map, GST_MAP_READ);
+		  dbgbuf = map.data;
+		  GST_ERROR_OBJECT(demux,"ndata = %02X %02X %02X %02X\n",dbgbuf[0], dbgbuf[1], dbgbuf[2], dbgbuf[3]);
+		  gst_buffer_unmap (outbuf, &map);
+		}
+#endif
+#endif
 
         ret = gst_qtdemux_decorate_and_push_buffer (demux, stream, outbuf,
             dts, pts, duration, keyframe, dts, demux->offset);
@@ -4785,8 +4924,10 @@ qtdemux_parse_node (GstQTDemux * qtdemux, GNode * node, const guint8 * buffer,
   fourcc = QT_FOURCC (buffer + 4);
 
   /* ignore empty nodes */
-  if (G_UNLIKELY (fourcc == 0 || node_length == 8))
+  if (G_UNLIKELY (fourcc == 0 || node_length == 8)) {
+  	GST_LOG_OBJECT (qtdemux, "Ignore empty nodes because fourcc is 0 or node_length is 8.");	// wonho.chun 2012-04-13
     return TRUE;
+  }
 
   type = qtdemux_type_get (fourcc);
 
@@ -6112,7 +6253,10 @@ qtdemux_parse_segments (GstQTDemux * qtdemux, QtDemuxStream * stream,
           gst_util_uint64_scale (media_time, GST_SECOND, stream->timescale);
       segment->media_stop = segment->media_start + segment->duration;
       rate_int = GST_READ_UINT32_BE (buffer + 24 + i * 12);
+#ifdef INCLUDE_LMF
+	  segment->rate = 1;
 
+#if 0
       if (rate_int <= 1) {
         /* 0 is not allowed, some programs write 1 instead of the floating point
          * value */
@@ -6122,6 +6266,8 @@ qtdemux_parse_segments (GstQTDemux * qtdemux, QtDemuxStream * stream,
       } else {
         segment->rate = rate_int / 65536.0;
       }
+#endif
+#endif
 
       GST_DEBUG_OBJECT (qtdemux, "created segment %d time %" GST_TIME_FORMAT
           ", duration %" GST_TIME_FORMAT ", media_time %" GST_TIME_FORMAT
@@ -6542,6 +6688,21 @@ qtdemux_parse_trak (GstQTDemux * qtdemux, GNode * trak)
      * some of those trailers, nowadays, have prologue images that are
      * themselves vide tracks as well. I haven't really found a way to
      * identify those yet, except for just looking at their duration. */
+#ifdef INCLUDE_LMF
+	/* wonho.chun 2012-04-13
+	 	this code makes a side effect that we can't make a pipeline for video even though there is a video stream.
+	 	Of course, the stream has a problem, but video should be displayed for such a case.
+	 	To check the stream info, I'll just print the information not free the stream.
+	*/
+	if (tdur1 != 0 && (tdur2 * 10 / tdur1) < 2) {
+      GST_WARNING_OBJECT (qtdemux,
+          "Track shorter than 20%% (%" G_GUINT64_FORMAT "/%" G_GUINT32_FORMAT
+          " vs. %" G_GUINT64_FORMAT "/%" G_GUINT32_FORMAT ") of the stream "
+          "found, assuming preview image or something; skipping track",
+          stream->duration, stream->timescale, qtdemux->duration,
+          qtdemux->timescale);
+    }
+#else
     if (tdur1 != 0 && (tdur2 * 10 / tdur1) < 2) {
       GST_WARNING_OBJECT (qtdemux,
           "Track shorter than 20%% (%" G_GUINT64_FORMAT "/%" G_GUINT32_FORMAT
@@ -6552,6 +6713,7 @@ qtdemux_parse_trak (GstQTDemux * qtdemux, GNode * trak)
       g_free (stream);
       return TRUE;
     }
+#endif	
   }
 
   if (!(hdlr = qtdemux_tree_get_child_by_type (mdia, FOURCC_hdlr)))
@@ -6565,6 +6727,17 @@ qtdemux_parse_trak (GstQTDemux * qtdemux, GNode * trak)
     stream->subtype = QT_FOURCC ((guint8 *) hdlr->data + 16);
   GST_LOG_OBJECT (qtdemux, "track subtype: %" GST_FOURCC_FORMAT,
       GST_FOURCC_ARGS (stream->subtype));
+
+#ifdef INCLUDE_LMF
+#ifdef THUMBNAIL  //to detect thumbnail-mode. for reducing thumbnail extract time
+  if((qtdemux->thumbnail_mode) && (stream->subtype == FOURCC_soun))
+  {
+	  GST_DEBUG_OBJECT(qtdemux,"This is the Thumbnail-mode and don't have to parse audio track.");
+	  g_free (stream);
+	  return TRUE;
+  }
+#endif
+#endif
 
   if (!(minf = qtdemux_tree_get_child_by_type (mdia, FOURCC_minf)))
     goto corrupt_file;
@@ -7476,8 +7649,13 @@ qtdemux_parse_trak (GstQTDemux * qtdemux, GNode * trak)
       goto unknown_stream;
     }
     stream->sampled = TRUE;
-  } else if (stream->subtype == FOURCC_subp || stream->subtype == FOURCC_text) {
-
+  }
+#ifdef INCLUDE_LMF
+  else if (stream->subtype == FOURCC_subp) //mp4에 text trak spec out
+#else
+  else if (stream->subtype == FOURCC_subp || stream->subtype == FOURCC_text)
+#endif
+  {
     stream->sampled = TRUE;
 
     offset = 16;
@@ -9204,6 +9382,7 @@ gst_qtdemux_handle_esds (GstQTDemux * qtdemux, QtDemuxStream * stream,
       }
       break;                    /* Nothing special needed here */
     case 0x21:                 /* H.264 */
+	  GST_DEBUG_OBJECT (qtdemux, "H.264 / AVC");
       codec_name = "H.264 / AVC";
       caps = gst_caps_new_simple ("video/x-h264",
           "stream-format", G_TYPE_STRING, "avc",
@@ -9245,6 +9424,7 @@ gst_qtdemux_handle_esds (GstQTDemux * qtdemux, QtDemuxStream * stream,
     case 0x63:
     case 0x64:
     case 0x65:
+	  GST_DEBUG_OBJECT (qtdemux, "MPEG-2 video");
       codec_name = "MPEG-2 video";
 
       gst_caps_unref (stream->caps);
@@ -9254,12 +9434,14 @@ gst_qtdemux_handle_esds (GstQTDemux * qtdemux, QtDemuxStream * stream,
       break;
     case 0x69:                 /* MP3 has two different values, accept either */
     case 0x6B:
+	  GST_DEBUG_OBJECT (qtdemux, "MPEG-1 layer 3");
       /* change to mpeg1 layer 3 audio */
       gst_caps_set_simple (stream->caps, "layer", G_TYPE_INT, 3,
           "mpegversion", G_TYPE_INT, 1, NULL);
       codec_name = "MPEG-1 layer 3";
       break;
     case 0x6A:                 /* MPEG-1 */
+	  GST_DEBUG_OBJECT (qtdemux, "MPEG-1 video");
       codec_name = "MPEG-1 video";
 
       gst_caps_unref (stream->caps);
@@ -9269,21 +9451,31 @@ gst_qtdemux_handle_esds (GstQTDemux * qtdemux, QtDemuxStream * stream,
       break;
     case 0x6C:                 /* MJPEG */
       caps = gst_caps_new_empty_simple ("image/jpeg");
-      codec_name = "Motion-JPEG";
+#ifdef INCLUDE_LMF
+	  GST_DEBUG_OBJECT (qtdemux, "Motion JPEG");
+      codec_name = "Motion JPEG";	// LMF app ?ܿ??? MJPEG ?ćϵ??ϠǏ?⠀?ǘ - ?聦
+#else
+	  GST_DEBUG_OBJECT (qtdemux, "Motion-JPEG");
+	  codec_name = "Motion-JPEG";
+#endif
       break;
     case 0x6D:                 /* PNG */
+	  GST_DEBUG_OBJECT (qtdemux, "PNG still images");
       caps = gst_caps_new_empty_simple ("image/png");
       codec_name = "PNG still images";
       break;
     case 0x6E:                 /* JPEG2000 */
+	  GST_DEBUG_OBJECT (qtdemux, "JPEG-2000");
       codec_name = "JPEG-2000";
       caps = gst_caps_new_simple ("image/x-j2c", "fields", G_TYPE_INT, 1, NULL);
       break;
     case 0xA4:                 /* Dirac */
+	  GST_DEBUG_OBJECT (qtdemux, "Dirac");
       codec_name = "Dirac";
       caps = gst_caps_new_empty_simple ("video/x-dirac");
       break;
     case 0xA5:                 /* AC3 */
+	  GST_DEBUG_OBJECT (qtdemux, "AC-3 audio");
       codec_name = "AC-3 audio";
       caps = gst_caps_new_simple ("audio/x-ac3",
           "framed", G_TYPE_BOOLEAN, TRUE, NULL);
@@ -9291,9 +9483,26 @@ gst_qtdemux_handle_esds (GstQTDemux * qtdemux, QtDemuxStream * stream,
     case 0xE1:                 /* QCELP */
       /* QCELP, the codec_data is a riff tag (little endian) with
        * more info (http://ftp.3gpp2.org/TSGC/Working/2003/2003-05-SanDiego/TSG-C-2003-05-San%20Diego/WG1/SWG12/C12-20030512-006%20=%20C12-20030217-015_Draft_Baseline%20Text%20of%20FFMS_R2.doc). */
-      caps = gst_caps_new_empty_simple ("audio/qcelp");
+ 	  GST_DEBUG_OBJECT (qtdemux, "QCELP");
+	  caps = gst_caps_new_empty_simple ("audio/qcelp");
       codec_name = "QCELP";
       break;
+#ifdef INCLUDE_LMF
+	case 0xdd:	/* wonho.chun	test file for vorbis... this value is not defined exactly in ISO14496-1 So, I think that we need to send mesage "no audio" to app. */
+	  //caps = gst_caps_new_empty_simple ("audio/x-vorbis");
+	  //codec_name = "VORBIS audio";
+	  GST_DEBUG_OBJECT (qtdemux, "vorbis");
+	  codec_name = "unknown";
+#if 0
+	  // to send the "unsupported audio" inform.
+	  gst_element_post_message(GST_ELEMENT_CAST(qtdemux),
+			  				   gst_message_new_application(GST_OBJECT_CAST(qtdemux),
+			  				   gst_structure_new("GstMessageAudio", "AUDIO", G_TYPE_BOOLEAN,
+							   FALSE, NULL)));
+	  GST_DEBUG_OBJECT (qtdemux, "sent unsupported audio message to application");
+#endif	// #if 0
+	break;
+#endif	// INCLUDE_LMF
     default:
       break;
   }
@@ -9339,40 +9548,75 @@ qtdemux_video_caps (GstQTDemux * qtdemux, QtDemuxStream * stream,
   GstCaps *caps;
   const GstStructure *s;
   const gchar *name;
+  
+#ifdef INCLUDE_LMF  
+  const gchar *fmt;
+#endif
+
+  GST_DEBUG_OBJECT (qtdemux, "fourcc %" GST_FOURCC_FORMAT, GST_FOURCC_ARGS (fourcc));	// wonho.chun
 
   switch (fourcc) {
     case GST_MAKE_FOURCC ('p', 'n', 'g', ' '):
+	  GST_DEBUG_OBJECT (qtdemux, "PNG still images");
       _codec ("PNG still images");
       caps = gst_caps_new_empty_simple ("image/png");
       break;
     case GST_MAKE_FOURCC ('j', 'p', 'e', 'g'):
-      _codec ("JPEG still images");
+#ifdef INCLUDE_LMF
+	  if (stream->duration)	// wonho.chun	fourcc?? JPEG?? Motion Jpeg ?濬 duration x'Ǐ?頃odec name; Motion JPEG8?Π?÷Aֵ??Ϡǔ.	2012-09-26
+	  {
+	  	  GST_DEBUG_OBJECT (qtdemux, "Motion JPEG");
+	      _codec ("Motion JPEG");	// LMF app ?ܿ??? MJPEG ?ćϵ??ϠǏ?⠀?ǘ - ?聦
+	  }
+	  else {
+	  	  GST_DEBUG_OBJECT (qtdemux, "JPEG still images");
+ 	  	  _codec ("JPEG still images");
+	  }
+#else
+	  GST_DEBUG_OBJECT (qtdemux, "JPEG still images");
+	  _codec ("JPEG still images");
+#endif
       caps = gst_caps_new_empty_simple ("image/jpeg");
       break;
     case GST_MAKE_FOURCC ('m', 'j', 'p', 'a'):
     case GST_MAKE_FOURCC ('A', 'V', 'D', 'J'):
     case GST_MAKE_FOURCC ('M', 'J', 'P', 'G'):
     case GST_MAKE_FOURCC ('d', 'm', 'b', '1'):
-      _codec ("Motion-JPEG");
+#ifdef INCLUDE_LMF
+	  GST_DEBUG_OBJECT (qtdemux, "Motion JPEG");
+      _codec ("Motion JPEG");	// LMF app ?ܿ??? MJPEG ?ćϵ??ϠǏ?⠀?ǘ - ?聦
+#else
+	  GST_DEBUG_OBJECT (qtdemux, "Motion-JPEG");
+	  _codec ("Motion-JPEG");
+#endif
       caps = gst_caps_new_empty_simple ("image/jpeg");
       break;
     case GST_MAKE_FOURCC ('m', 'j', 'p', 'b'):
-      _codec ("Motion-JPEG format B");
+#ifdef INCLUDE_LMF
+	  GST_DEBUG_OBJECT (qtdemux, "Motion JPEG format B");
+      _codec ("Motion JPEG format B");	// LMF app ?ܿ??? MJPEG ?ćϵ??ϠǏ?⠀?ǘ - ?聦
+#else
+	  GST_DEBUG_OBJECT (qtdemux, "Motion-JPEG format B");
+	  _codec ("Motion-JPEG format B");
+#endif
       caps = gst_caps_new_empty_simple ("video/x-mjpeg-b");
       break;
     case GST_MAKE_FOURCC ('m', 'j', 'p', '2'):
+	  GST_DEBUG_OBJECT (qtdemux, "JPEG-2000");
       _codec ("JPEG-2000");
       /* override to what it should be according to spec, avoid palette_data */
       stream->bits_per_sample = 24;
       caps = gst_caps_new_simple ("image/x-j2c", "fields", G_TYPE_INT, 1, NULL);
       break;
     case GST_MAKE_FOURCC ('S', 'V', 'Q', '3'):
+	  GST_DEBUG_OBJECT (qtdemux, "Sorensen video v.3");
       _codec ("Sorensen video v.3");
       caps = gst_caps_new_simple ("video/x-svq",
           "svqversion", G_TYPE_INT, 3, NULL);
       break;
     case GST_MAKE_FOURCC ('s', 'v', 'q', 'i'):
     case GST_MAKE_FOURCC ('S', 'V', 'Q', '1'):
+	  GST_DEBUG_OBJECT (qtdemux, "Sorensen video v.1");
       _codec ("Sorensen video v.1");
       caps = gst_caps_new_simple ("video/x-svq",
           "svqversion", G_TYPE_INT, 1, NULL);
@@ -9380,7 +9624,8 @@ qtdemux_video_caps (GstQTDemux * qtdemux, QtDemuxStream * stream,
     case GST_MAKE_FOURCC ('r', 'a', 'w', ' '):
     {
       guint16 bps;
-
+	  
+	  GST_DEBUG_OBJECT (qtdemux, "Raw RGB video");
       _codec ("Raw RGB video");
       bps = QT_UINT16 (stsd_data + 98);
       /* set common stuff */
@@ -9406,34 +9651,40 @@ qtdemux_video_caps (GstQTDemux * qtdemux, QtDemuxStream * stream,
       break;
     }
     case GST_MAKE_FOURCC ('y', 'v', '1', '2'):
+	  GST_DEBUG_OBJECT (qtdemux, "Raw planar YUV 4:2:0");
       _codec ("Raw planar YUV 4:2:0");
       caps = gst_caps_new_simple ("video/x-raw",
           "format", G_TYPE_STRING, "I420", NULL);
       break;
     case GST_MAKE_FOURCC ('y', 'u', 'v', '2'):
     case GST_MAKE_FOURCC ('Y', 'u', 'v', '2'):
+	  GST_DEBUG_OBJECT (qtdemux, "Raw packed YUV 4:2:2");
       _codec ("Raw packed YUV 4:2:2");
       caps = gst_caps_new_simple ("video/x-raw",
           "format", G_TYPE_STRING, "YUY2", NULL);
       break;
     case GST_MAKE_FOURCC ('2', 'v', 'u', 'y'):
     case GST_MAKE_FOURCC ('2', 'V', 'u', 'y'):
+	  GST_DEBUG_OBJECT (qtdemux, "Raw packed YUV 4:2:2");
       _codec ("Raw packed YUV 4:2:2");
       caps = gst_caps_new_simple ("video/x-raw",
           "format", G_TYPE_STRING, "UYVY", NULL);
       break;
     case GST_MAKE_FOURCC ('v', '2', '1', '0'):
+	  GST_DEBUG_OBJECT (qtdemux, "Raw packed YUV 10-bit 4:2:2");
       _codec ("Raw packed YUV 10-bit 4:2:2");
       caps = gst_caps_new_simple ("video/x-raw",
           "format", G_TYPE_STRING, "v210", NULL);
       break;
     case GST_MAKE_FOURCC ('r', '2', '1', '0'):
+	  GST_DEBUG_OBJECT (qtdemux, "Raw packed RGB 10-bit 4:4:4");
       _codec ("Raw packed RGB 10-bit 4:4:4");
       caps = gst_caps_new_simple ("video/x-raw",
           "format", G_TYPE_STRING, "r210", NULL);
       break;
     case GST_MAKE_FOURCC ('m', 'p', 'e', 'g'):
     case GST_MAKE_FOURCC ('m', 'p', 'g', '1'):
+	  GST_DEBUG_OBJECT (qtdemux, "MPEG-1 video");
       _codec ("MPEG-1 video");
       caps = gst_caps_new_simple ("video/mpeg", "mpegversion", G_TYPE_INT, 1,
           "systemstream", G_TYPE_BOOLEAN, FALSE, NULL);
@@ -9452,11 +9703,13 @@ qtdemux_video_caps (GstQTDemux * qtdemux, QtDemuxStream * stream,
     case GST_MAKE_FOURCC ('x', 'd', 'v', '2'): /* XDCAM HD 1080i60 */
     case GST_MAKE_FOURCC ('A', 'V', 'm', 'p'): /* AVID IMX PAL */
     case GST_MAKE_FOURCC ('m', 'p', 'g', '2'): /* AVID IMX PAL */
+	  GST_DEBUG_OBJECT (qtdemux, "MPEG-2 video");
       _codec ("MPEG-2 video");
       caps = gst_caps_new_simple ("video/mpeg", "mpegversion", G_TYPE_INT, 2,
           "systemstream", G_TYPE_BOOLEAN, FALSE, NULL);
       break;
     case GST_MAKE_FOURCC ('g', 'i', 'f', ' '):
+	  GST_DEBUG_OBJECT (qtdemux, "GIF still images");
       _codec ("GIF still images");
       caps = gst_caps_new_empty_simple ("image/gif");
       break;
@@ -9464,34 +9717,40 @@ qtdemux_video_caps (GstQTDemux * qtdemux, QtDemuxStream * stream,
     case GST_MAKE_FOURCC ('H', '2', '6', '3'):
     case GST_MAKE_FOURCC ('s', '2', '6', '3'):
     case GST_MAKE_FOURCC ('U', '2', '6', '3'):
+	  GST_DEBUG_OBJECT (qtdemux, "H.263");
       _codec ("H.263");
       /* ffmpeg uses the height/width props, don't know why */
       caps = gst_caps_new_empty_simple ("video/x-h263");
       break;
     case GST_MAKE_FOURCC ('m', 'p', '4', 'v'):
     case GST_MAKE_FOURCC ('M', 'P', '4', 'V'):
+	  GST_DEBUG_OBJECT (qtdemux, "MPEG-4 video");
       _codec ("MPEG-4 video");
       caps = gst_caps_new_simple ("video/mpeg", "mpegversion", G_TYPE_INT, 4,
           "systemstream", G_TYPE_BOOLEAN, FALSE, NULL);
       break;
     case GST_MAKE_FOURCC ('3', 'i', 'v', 'd'):
     case GST_MAKE_FOURCC ('3', 'I', 'V', 'D'):
+	  GST_DEBUG_OBJECT (qtdemux, "Microsoft MPEG-4 4.3");
       _codec ("Microsoft MPEG-4 4.3");  /* FIXME? */
       caps = gst_caps_new_simple ("video/x-msmpeg",
           "msmpegversion", G_TYPE_INT, 43, NULL);
       break;
     case GST_MAKE_FOURCC ('D', 'I', 'V', '3'):
+	  GST_DEBUG_OBJECT (qtdemux, "DivX 3");
       _codec ("DivX 3");
       caps = gst_caps_new_simple ("video/x-divx",
           "divxversion", G_TYPE_INT, 3, NULL);
       break;
     case GST_MAKE_FOURCC ('D', 'I', 'V', 'X'):
     case GST_MAKE_FOURCC ('d', 'i', 'v', 'x'):
+	  GST_DEBUG_OBJECT (qtdemux, "DivX 4");
       _codec ("DivX 4");
       caps = gst_caps_new_simple ("video/x-divx",
           "divxversion", G_TYPE_INT, 4, NULL);
       break;
     case GST_MAKE_FOURCC ('D', 'X', '5', '0'):
+	  GST_DEBUG_OBJECT (qtdemux, "DivX 5");
       _codec ("DivX 5");
       caps = gst_caps_new_simple ("video/x-divx",
           "divxversion", G_TYPE_INT, 5, NULL);
@@ -9505,41 +9764,50 @@ qtdemux_video_caps (GstQTDemux * qtdemux, QtDemuxStream * stream,
     case GST_MAKE_FOURCC ('U', 'M', 'P', '4'):
       caps = gst_caps_new_simple ("video/mpeg",
           "mpegversion", G_TYPE_INT, 4, NULL);
-      if (codec_name)
-        *codec_name = g_strdup ("MPEG-4");
+      if (codec_name){
+		GST_DEBUG_OBJECT (qtdemux, "MPEG-4");
+		*codec_name = g_strdup ("MPEG-4");
+	  }
       break;
 
     case GST_MAKE_FOURCC ('c', 'v', 'i', 'd'):
+	  GST_DEBUG_OBJECT (qtdemux, "Cinepak");
       _codec ("Cinepak");
       caps = gst_caps_new_empty_simple ("video/x-cinepak");
       break;
     case GST_MAKE_FOURCC ('q', 'd', 'r', 'w'):
+	  GST_DEBUG_OBJECT (qtdemux, "Apple QuickDraw");
       _codec ("Apple QuickDraw");
       caps = gst_caps_new_empty_simple ("video/x-qdrw");
       break;
     case GST_MAKE_FOURCC ('r', 'p', 'z', 'a'):
+	  GST_DEBUG_OBJECT (qtdemux, "Apple video");
       _codec ("Apple video");
       caps = gst_caps_new_empty_simple ("video/x-apple-video");
       break;
     case GST_MAKE_FOURCC ('a', 'v', 'c', '1'):
+	  GST_DEBUG_OBJECT (qtdemux, "H.264 / AVC");
       _codec ("H.264 / AVC");
       caps = gst_caps_new_simple ("video/x-h264",
           "stream-format", G_TYPE_STRING, "avc",
           "alignment", G_TYPE_STRING, "au", NULL);
       break;
     case GST_MAKE_FOURCC ('r', 'l', 'e', ' '):
+	  GST_DEBUG_OBJECT (qtdemux, "Run-length encoding");
       _codec ("Run-length encoding");
       caps = gst_caps_new_simple ("video/x-rle",
           "layout", G_TYPE_STRING, "quicktime", NULL);
       break;
     case GST_MAKE_FOURCC ('I', 'V', '3', '2'):
     case GST_MAKE_FOURCC ('i', 'v', '3', '2'):
+	  GST_DEBUG_OBJECT (qtdemux, "Indeo Video 3");
       _codec ("Indeo Video 3");
       caps = gst_caps_new_simple ("video/x-indeo",
           "indeoversion", G_TYPE_INT, 3, NULL);
       break;
     case GST_MAKE_FOURCC ('I', 'V', '4', '1'):
     case GST_MAKE_FOURCC ('i', 'v', '4', '1'):
+	  GST_DEBUG_OBJECT (qtdemux, "Intel Video 4");
       _codec ("Intel Video 4");
       caps = gst_caps_new_simple ("video/x-indeo",
           "indeoversion", G_TYPE_INT, 4, NULL);
@@ -9552,31 +9820,38 @@ qtdemux_video_caps (GstQTDemux * qtdemux, QtDemuxStream * stream,
     case GST_MAKE_FOURCC ('D', 'V', 'C', 'S'):
     case GST_MAKE_FOURCC ('d', 'v', '2', '5'):
     case GST_MAKE_FOURCC ('d', 'v', 'p', 'p'):
+	  GST_DEBUG_OBJECT (qtdemux, "DV Video");
       _codec ("DV Video");
       caps = gst_caps_new_simple ("video/x-dv", "dvversion", G_TYPE_INT, 25,
           "systemstream", G_TYPE_BOOLEAN, FALSE, NULL);
       break;
     case GST_MAKE_FOURCC ('d', 'v', '5', 'n'): /* DVCPRO50 NTSC */
     case GST_MAKE_FOURCC ('d', 'v', '5', 'p'): /* DVCPRO50 PAL */
+	  GST_DEBUG_OBJECT (qtdemux, "DVCPro50 Video");
       _codec ("DVCPro50 Video");
       caps = gst_caps_new_simple ("video/x-dv", "dvversion", G_TYPE_INT, 50,
           "systemstream", G_TYPE_BOOLEAN, FALSE, NULL);
       break;
     case GST_MAKE_FOURCC ('d', 'v', 'h', '5'): /* DVCPRO HD 50i produced by FCP */
     case GST_MAKE_FOURCC ('d', 'v', 'h', '6'): /* DVCPRO HD 60i produced by FCP */
+	case GST_MAKE_FOURCC ('d', 'v', 'h', 'q'): /* DVCPRO HD 720p50 added by wonho.chun */
+	  GST_DEBUG_OBJECT (qtdemux, "DVCProHD Video");
       _codec ("DVCProHD Video");
       caps = gst_caps_new_simple ("video/x-dv", "dvversion", G_TYPE_INT, 100,
           "systemstream", G_TYPE_BOOLEAN, FALSE, NULL);
       break;
     case GST_MAKE_FOURCC ('s', 'm', 'c', ' '):
+	  GST_DEBUG_OBJECT (qtdemux, "Apple Graphics (SMC)");
       _codec ("Apple Graphics (SMC)");
       caps = gst_caps_new_empty_simple ("video/x-smc");
       break;
     case GST_MAKE_FOURCC ('V', 'P', '3', '1'):
+	  GST_DEBUG_OBJECT (qtdemux, "VP3");
       _codec ("VP3");
       caps = gst_caps_new_empty_simple ("video/x-vp3");
       break;
     case GST_MAKE_FOURCC ('X', 'i', 'T', 'h'):
+	  GST_DEBUG_OBJECT (qtdemux, "Theora");
       _codec ("Theora");
       caps = gst_caps_new_empty_simple ("video/x-theora");
       /* theora uses one byte of padding in the data stream because it does not
@@ -9584,56 +9859,74 @@ qtdemux_video_caps (GstQTDemux * qtdemux, QtDemuxStream * stream,
       stream->padding = 1;
       break;
     case GST_MAKE_FOURCC ('d', 'r', 'a', 'c'):
+	  GST_DEBUG_OBJECT (qtdemux, "Dirac");
       _codec ("Dirac");
       caps = gst_caps_new_empty_simple ("video/x-dirac");
       break;
     case GST_MAKE_FOURCC ('t', 'i', 'f', 'f'):
+	  GST_DEBUG_OBJECT (qtdemux, "TIFF still images");
       _codec ("TIFF still images");
       caps = gst_caps_new_empty_simple ("image/tiff");
       break;
     case GST_MAKE_FOURCC ('i', 'c', 'o', 'd'):
+	  GST_DEBUG_OBJECT (qtdemux, "Apple Intermediate Codec");
       _codec ("Apple Intermediate Codec");
       caps = gst_caps_from_string ("video/x-apple-intermediate-codec");
       break;
     case GST_MAKE_FOURCC ('A', 'V', 'd', 'n'):
+	  GST_DEBUG_OBJECT (qtdemux, "AVID DNxHD");
       _codec ("AVID DNxHD");
       caps = gst_caps_from_string ("video/x-dnxhd");
       break;
+#ifdef INCLUDE_LMF
+	case GST_MAKE_FOURCC ('A', 'V', 'd', 'v'):
+	  GST_DEBUG_OBJECT (qtdemux, "AVID DVCPRO 50 ");
+      _codec ("AVID DVCPRO 50");
+      caps = gst_caps_from_string ("video/x-avdv");
+      break;
+#endif
     case GST_MAKE_FOURCC ('V', 'P', '8', '0'):
+	  GST_DEBUG_OBJECT (qtdemux, "On2 VP8");
       _codec ("On2 VP8");
       caps = gst_caps_from_string ("video/x-vp8");
       break;
     case GST_MAKE_FOURCC ('a', 'p', 'c', 's'):
+	  GST_DEBUG_OBJECT (qtdemux, "Apple ProRes LT");
       _codec ("Apple ProRes LT");
       caps =
           gst_caps_new_simple ("video/x-prores", "variant", G_TYPE_STRING, "lt",
           NULL);
       break;
     case GST_MAKE_FOURCC ('a', 'p', 'c', 'h'):
+	  GST_DEBUG_OBJECT (qtdemux, "Apple ProRes HQ");
       _codec ("Apple ProRes HQ");
       caps =
           gst_caps_new_simple ("video/x-prores", "variant", G_TYPE_STRING, "hq",
           NULL);
       break;
     case GST_MAKE_FOURCC ('a', 'p', 'c', 'n'):
+	  GST_DEBUG_OBJECT (qtdemux, "Apple ProRes");
       _codec ("Apple ProRes");
       caps =
           gst_caps_new_simple ("video/x-prores", "variant", G_TYPE_STRING,
           "standard", NULL);
       break;
     case GST_MAKE_FOURCC ('a', 'p', 'c', 'o'):
+	  GST_DEBUG_OBJECT (qtdemux, "Apple ProRes Proxy");
       _codec ("Apple ProRes Proxy");
       caps =
           gst_caps_new_simple ("video/x-prores", "variant", G_TYPE_STRING,
           "proxy", NULL);
       break;
     case GST_MAKE_FOURCC ('a', 'p', '4', 'h'):
+	  GST_DEBUG_OBJECT (qtdemux, "Apple ProRes 4444");
       _codec ("Apple ProRes 4444");
       caps =
           gst_caps_new_simple ("video/x-prores", "variant", G_TYPE_STRING,
           "4444", NULL);
       break;
     case FOURCC_ovc1:
+	  GST_DEBUG_OBJECT (qtdemux, "VC-1");
       _codec ("VC-1");
       caps = gst_caps_new_simple ("video/x-wmv",
           "wmvversion", G_TYPE_INT, 3, "format", G_TYPE_STRING, "WVC1", NULL);
@@ -9642,6 +9935,7 @@ qtdemux_video_caps (GstQTDemux * qtdemux, QtDemuxStream * stream,
     default:
     {
       char *s, fourstr[5];
+	  GST_DEBUG_OBJECT (qtdemux, "video/x-gst-fourcc-%"GST_FOURCC_FORMAT, GST_FOURCC_ARGS (fourcc));
 
       g_snprintf (fourstr, 5, "%" GST_FOURCC_FORMAT, GST_FOURCC_ARGS (fourcc));
       s = g_strdup_printf ("video/x-gst-fourcc-%s", g_strstrip (fourstr));
@@ -9649,6 +9943,31 @@ qtdemux_video_caps (GstQTDemux * qtdemux, QtDemuxStream * stream,
       break;
     }
   }
+
+#ifdef INCLUDE_LMF	// wonho.chun	LG SoC ?濬 container?͠fourcc?? caps?Π?Ѱ܁ྟ ǔ.
+{
+  char *s, fourstr[5];
+
+  if (qtdemux->major_brand == FOURCC_mjp2)
+    fmt = "Motion JPEG 2000";
+  else if ((qtdemux->major_brand & 0xffff) == GST_MAKE_FOURCC ('3', 'g', 0, 0))
+    fmt = "3GP";
+  else if (qtdemux->major_brand == FOURCC_qt__)
+    fmt = "Quicktime";
+  else if (qtdemux->fragmented)
+    fmt = "ISO fMP4";
+  else
+    fmt = "ISO MP4/M4A";
+
+  GST_DEBUG_OBJECT (qtdemux, "fourcc %"GST_FOURCC_FORMAT, GST_FOURCC_ARGS (fourcc));
+
+  g_snprintf (fourstr, 5, "%" GST_FOURCC_FORMAT, GST_FOURCC_ARGS (fourcc));
+  s = g_strdup_printf ("%s", g_strstrip (fourstr));
+  gst_caps_set_simple (caps, "container", G_TYPE_STRING, fmt,	// should modify webOS. wonho.chun 04/16/2013
+		"format", G_TYPE_STRING, s,
+		"timestamptype", G_TYPE_BOOLEAN, TRUE, NULL);
+}
+#endif	
 
   /* enable clipping for raw video streams */
   s = gst_caps_get_structure (caps, 0);
@@ -9669,15 +9988,47 @@ qtdemux_audio_caps (GstQTDemux * qtdemux, QtDemuxStream * stream,
   gint endian = 0;
 
   GST_DEBUG_OBJECT (qtdemux, "resolve fourcc %08x", fourcc);
+  GST_DEBUG_OBJECT (qtdemux, "fourcc %" GST_FOURCC_FORMAT, GST_FOURCC_ARGS (fourcc));	// wonho.chun
 
   switch (fourcc) {
     case GST_MAKE_FOURCC ('N', 'O', 'N', 'E'):
     case GST_MAKE_FOURCC ('r', 'a', 'w', ' '):
+#ifdef INCLUDE_LMF
+	{
+      gchar *str;
+      gint depth;
+      GstAudioFormat format;
+
+      depth = stream->bytes_per_packet * 8;
+
+	  if (depth == 8)
+	  {
+	  	GST_DEBUG_OBJECT (qtdemux, "Raw 8-bit PCM audio");
+        _codec ("Raw 8-bit PCM audio");
+        caps = gst_caps_new_simple ("audio/x-raw",
+          "format", G_TYPE_STRING, "U8",
+          "layout", G_TYPE_STRING, "interleaved", NULL);
+	  }else {
+		format = gst_audio_format_build_integer (TRUE, endian, depth, depth);
+	  	str = g_strdup_printf ("Raw %d-bit PCM audio", depth);
+		GST_DEBUG_OBJECT (qtdemux, "%s",str);
+     	_codec (str);
+      	g_free (str);
+		// wonho.chun 04-17-2013 need to check it later.
+        caps = gst_caps_new_simple ("audio/x-raw",
+          "format", G_TYPE_STRING, gst_audio_format_to_string (format),
+          "layout", G_TYPE_STRING, "interleaved", NULL);
+	  }
+      break;
+    }		
+#else
+	  GST_DEBUG_OBJECT (qtdemux, "Raw 8-bit PCM audio");
       _codec ("Raw 8-bit PCM audio");
       caps = gst_caps_new_simple ("audio/x-raw",
           "format", G_TYPE_STRING, "U8",
           "layout", G_TYPE_STRING, "interleaved", NULL);
       break;
+#endif	  
     case GST_MAKE_FOURCC ('t', 'w', 'o', 's'):
       endian = G_BIG_ENDIAN;
       /* fall-through */
@@ -9703,18 +10054,21 @@ qtdemux_audio_caps (GstQTDemux * qtdemux, QtDemuxStream * stream,
       break;
     }
     case GST_MAKE_FOURCC ('f', 'l', '6', '4'):
+	  GST_DEBUG_OBJECT (qtdemux, "Raw 64-bit floating-point audio");
       _codec ("Raw 64-bit floating-point audio");
       caps = gst_caps_new_simple ("audio/x-raw",
           "format", G_TYPE_STRING, "F64BE",
           "layout", G_TYPE_STRING, "interleaved", NULL);
       break;
     case GST_MAKE_FOURCC ('f', 'l', '3', '2'):
+	  GST_DEBUG_OBJECT (qtdemux, "Raw 32-bit floating-point audio");
       _codec ("Raw 32-bit floating-point audio");
       caps = gst_caps_new_simple ("audio/x-raw",
           "format", G_TYPE_STRING, "F32BE",
           "layout", G_TYPE_STRING, "interleaved", NULL);
       break;
     case FOURCC_in24:
+	  GST_DEBUG_OBJECT (qtdemux, "Raw 24-bit PCM audio");
       _codec ("Raw 24-bit PCM audio");
       /* we assume BIG ENDIAN, an enda box will tell us to change this to little
        * endian later */
@@ -9723,21 +10077,25 @@ qtdemux_audio_caps (GstQTDemux * qtdemux, QtDemuxStream * stream,
           "layout", G_TYPE_STRING, "interleaved", NULL);
       break;
     case GST_MAKE_FOURCC ('i', 'n', '3', '2'):
+	  GST_DEBUG_OBJECT (qtdemux, "Raw 32-bit PCM audio");
       _codec ("Raw 32-bit PCM audio");
       caps = gst_caps_new_simple ("audio/x-raw",
           "format", G_TYPE_STRING, "S32BE",
           "layout", G_TYPE_STRING, "interleaved", NULL);
       break;
     case GST_MAKE_FOURCC ('u', 'l', 'a', 'w'):
+	  GST_DEBUG_OBJECT (qtdemux, "Mu-law audio");
       _codec ("Mu-law audio");
       caps = gst_caps_new_empty_simple ("audio/x-mulaw");
       break;
     case GST_MAKE_FOURCC ('a', 'l', 'a', 'w'):
+	  GST_DEBUG_OBJECT (qtdemux, "A-law audio");	
       _codec ("A-law audio");
       caps = gst_caps_new_empty_simple ("audio/x-alaw");
       break;
     case 0x0200736d:
     case 0x6d730002:
+	  GST_DEBUG_OBJECT (qtdemux, "Microsoft ADPCM");
       _codec ("Microsoft ADPCM");
       /* Microsoft ADPCM-ACM code 2 */
       caps = gst_caps_new_simple ("audio/x-adpcm",
@@ -9745,12 +10103,14 @@ qtdemux_audio_caps (GstQTDemux * qtdemux, QtDemuxStream * stream,
       break;
     case 0x1100736d:
     case 0x6d730011:
+	  GST_DEBUG_OBJECT (qtdemux, "DVI/IMA ADPCM");
       _codec ("DVI/IMA ADPCM");
       caps = gst_caps_new_simple ("audio/x-adpcm",
           "layout", G_TYPE_STRING, "dvi", NULL);
       break;
     case 0x1700736d:
     case 0x6d730017:
+	  GST_DEBUG_OBJECT (qtdemux, "DVI/Intel IMA ADPCM");
       _codec ("DVI/Intel IMA ADPCM");
       /* FIXME DVI/Intel IMA ADPCM/ACM code 17 */
       caps = gst_caps_new_simple ("audio/x-adpcm",
@@ -9760,6 +10120,7 @@ qtdemux_audio_caps (GstQTDemux * qtdemux, QtDemuxStream * stream,
     case 0x6d730055:
       /* MPEG layer 3, CBR only (pre QT4.1) */
     case GST_MAKE_FOURCC ('.', 'm', 'p', '3'):
+	  GST_DEBUG_OBJECT (qtdemux, "MPEG-1 layer 3");
       _codec ("MPEG-1 layer 3");
       /* MPEG layer 3, CBR & VBR (QT4.1 and later) */
       caps = gst_caps_new_simple ("audio/mpeg", "layer", G_TYPE_INT, 3,
@@ -9767,46 +10128,55 @@ qtdemux_audio_caps (GstQTDemux * qtdemux, QtDemuxStream * stream,
       break;
     case 0x20736d:
     case GST_MAKE_FOURCC ('e', 'c', '-', '3'):
+	  GST_DEBUG_OBJECT (qtdemux, "EAC-3 audio");
       _codec ("EAC-3 audio");
       caps = gst_caps_new_simple ("audio/x-eac3",
           "framed", G_TYPE_BOOLEAN, TRUE, NULL);
       stream->sampled = TRUE;
       break;
     case GST_MAKE_FOURCC ('a', 'c', '-', '3'):
+	  GST_DEBUG_OBJECT (qtdemux, "AC-3 audio");
       _codec ("AC-3 audio");
       caps = gst_caps_new_simple ("audio/x-ac3",
           "framed", G_TYPE_BOOLEAN, TRUE, NULL);
       stream->sampled = TRUE;
       break;
     case GST_MAKE_FOURCC ('M', 'A', 'C', '3'):
+	  GST_DEBUG_OBJECT (qtdemux, "MACE-3");
       _codec ("MACE-3");
       caps = gst_caps_new_simple ("audio/x-mace",
           "maceversion", G_TYPE_INT, 3, NULL);
       break;
     case GST_MAKE_FOURCC ('M', 'A', 'C', '6'):
+	  GST_DEBUG_OBJECT (qtdemux, "MACE-6");
       _codec ("MACE-6");
       caps = gst_caps_new_simple ("audio/x-mace",
           "maceversion", G_TYPE_INT, 6, NULL);
       break;
     case GST_MAKE_FOURCC ('O', 'g', 'g', 'V'):
+	  GST_DEBUG_OBJECT (qtdemux, "application/ogg");
       /* ogg/vorbis */
       caps = gst_caps_new_empty_simple ("application/ogg");
       break;
     case GST_MAKE_FOURCC ('d', 'v', 'c', 'a'):
+	  GST_DEBUG_OBJECT (qtdemux, "DV audio");
       _codec ("DV audio");
       caps = gst_caps_new_empty_simple ("audio/x-dv");
       break;
     case GST_MAKE_FOURCC ('m', 'p', '4', 'a'):
+	  GST_DEBUG_OBJECT (qtdemux, "MPEG-4 AAC audio");
       _codec ("MPEG-4 AAC audio");
       caps = gst_caps_new_simple ("audio/mpeg",
           "mpegversion", G_TYPE_INT, 4, "framed", G_TYPE_BOOLEAN, TRUE,
           "stream-format", G_TYPE_STRING, "raw", NULL);
       break;
     case GST_MAKE_FOURCC ('Q', 'D', 'M', 'C'):
+	  GST_DEBUG_OBJECT (qtdemux, "QDesign Music");
       _codec ("QDesign Music");
       caps = gst_caps_new_empty_simple ("audio/x-qdm");
       break;
     case GST_MAKE_FOURCC ('Q', 'D', 'M', '2'):
+	  GST_DEBUG_OBJECT (qtdemux, "QDesign Music v.2");
       _codec ("QDesign Music v.2");
       /* FIXME: QDesign music version 2 (no constant) */
       if (data) {
@@ -9819,35 +10189,43 @@ qtdemux_audio_caps (GstQTDemux * qtdemux, QtDemuxStream * stream,
       }
       break;
     case GST_MAKE_FOURCC ('a', 'g', 's', 'm'):
+	  GST_DEBUG_OBJECT (qtdemux, "GSM audio");
       _codec ("GSM audio");
       caps = gst_caps_new_empty_simple ("audio/x-gsm");
       break;
     case GST_MAKE_FOURCC ('s', 'a', 'm', 'r'):
+	  GST_DEBUG_OBJECT (qtdemux, "AMR audio");
       _codec ("AMR audio");
       caps = gst_caps_new_empty_simple ("audio/AMR");
       break;
     case GST_MAKE_FOURCC ('s', 'a', 'w', 'b'):
+	  GST_DEBUG_OBJECT (qtdemux, "AMR-WB audio");
       _codec ("AMR-WB audio");
       caps = gst_caps_new_empty_simple ("audio/AMR-WB");
       break;
     case GST_MAKE_FOURCC ('i', 'm', 'a', '4'):
+	  GST_DEBUG_OBJECT (qtdemux, "Quicktime IMA ADPCM");
       _codec ("Quicktime IMA ADPCM");
       caps = gst_caps_new_simple ("audio/x-adpcm",
           "layout", G_TYPE_STRING, "quicktime", NULL);
       break;
     case GST_MAKE_FOURCC ('a', 'l', 'a', 'c'):
+	  GST_DEBUG_OBJECT (qtdemux, "Apple lossless audio");
       _codec ("Apple lossless audio");
       caps = gst_caps_new_empty_simple ("audio/x-alac");
       break;
     case GST_MAKE_FOURCC ('Q', 'c', 'l', 'p'):
+	  GST_DEBUG_OBJECT (qtdemux, "QualComm PureVoice");
       _codec ("QualComm PureVoice");
       caps = gst_caps_from_string ("audio/qcelp");
       break;
     case FOURCC_owma:
+	  GST_DEBUG_OBJECT (qtdemux, "WMA");
       _codec ("WMA");
       caps = gst_caps_new_empty_simple ("audio/x-wma");
       break;
     case GST_MAKE_FOURCC ('q', 't', 'v', 'r'):
+	  GST_DEBUG_OBJECT (qtdemux, "qtvr");
       /* ? */
     default:
     {
@@ -9885,16 +10263,20 @@ qtdemux_sub_caps (GstQTDemux * qtdemux, QtDemuxStream * stream,
   GstCaps *caps;
 
   GST_DEBUG_OBJECT (qtdemux, "resolve fourcc %08x", fourcc);
+  GST_DEBUG_OBJECT (qtdemux, "fourcc %" GST_FOURCC_FORMAT, GST_FOURCC_ARGS (fourcc));	// wonho.chun
 
   switch (fourcc) {
     case GST_MAKE_FOURCC ('m', 'p', '4', 's'):
+	  GST_DEBUG_OBJECT (qtdemux, "DVD subtitle");
       _codec ("DVD subtitle");
       caps = gst_caps_new_empty_simple ("subpicture/x-dvd");
       break;
     case GST_MAKE_FOURCC ('t', 'e', 'x', 't'):
+	  GST_DEBUG_OBJECT (qtdemux, "Quicktime timed text");
       _codec ("Quicktime timed text");
       goto text;
     case GST_MAKE_FOURCC ('t', 'x', '3', 'g'):
+	  GST_DEBUG_OBJECT (qtdemux, "3GPP timed text");
       _codec ("3GPP timed text");
     text:
       caps = gst_caps_new_simple ("text/x-raw", "format", G_TYPE_STRING,
@@ -9923,6 +10305,7 @@ qtdemux_generic_caps (GstQTDemux * qtdemux, QtDemuxStream * stream,
 
   switch (fourcc) {
     case GST_MAKE_FOURCC ('m', '1', 'v', ' '):
+	  GST_DEBUG_OBJECT (qtdemux, "MPEG-1 Video");
       _codec ("MPEG 1 video");
       caps = gst_caps_new_simple ("video/mpeg", "mpegversion", G_TYPE_INT, 1,
           "systemstream", G_TYPE_BOOLEAN, FALSE, NULL);
@@ -9933,3 +10316,60 @@ qtdemux_generic_caps (GstQTDemux * qtdemux, QtDemuxStream * stream,
   }
   return caps;
 }
+
+#ifdef INCLUDE_LMF
+#ifdef THUMBNAIL
+static void
+gst_qtdemux_set_property(GObject* object, guint prop_id,
+	  const GValue* value, GParamSpec* pspec)
+{
+	GstQTDemux *demux;
+
+	demux = GST_QTDEMUX (object);
+
+	switch(prop_id){
+	   case PROP_THUMBNAIL_MODE:
+		  demux->thumbnail_mode = g_value_get_boolean(value);
+		  break;
+	   default:
+		  G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
+		  break;
+	}
+}
+
+static void
+gst_qtdemux_get_property(GObject* object, guint prop_id,
+	  GValue* value, GParamSpec* pspec)
+{
+	GstQTDemux *demux;
+
+	demux = GST_QTDEMUX (object);
+
+	switch(prop_id){
+	   case PROP_THUMBNAIL_MODE:
+		  g_value_set_boolean(value, demux->thumbnail_mode);
+		  break;
+	   default:
+		  G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
+		  break;
+	}
+}
+
+
+static void
+gst_qtdemux_find_thumbnail_property(GstQTDemux * demux)
+{
+	gboolean thumbnail = FALSE;
+
+	if(g_object_class_find_property(G_OBJECT_GET_CLASS(GST_ELEMENT_CAST(demux)), "thumbnail-mode"))
+	{
+		g_object_get(GST_ELEMENT_CAST(demux), "thumbnail-mode", &thumbnail, NULL);
+		//gst_qtdemux_set_property(G_OBJECT(qt), PROP_THUMBNAIL_MODE, thumbnail, "thumbnail-mode");
+		demux->thumbnail_mode = thumbnail;
+		GST_DEBUG_OBJECT(demux, "thumbnail mode : %d!!!\n", thumbnail);
+	}
+}
+
+#endif
+#endif
+
