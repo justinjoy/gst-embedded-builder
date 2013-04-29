@@ -41,7 +41,7 @@ GST_DEBUG_CATEGORY_EXTERN (qtdemux_debug);
   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_QTDEMUX))
 
 #define GST_QTDEMUX_CAST(obj) ((GstQTDemux *)(obj))
-
+#define INCLUDE_LMF
 /* qtdemux produces these for atoms it cannot parse */
 #define GST_QT_DEMUX_PRIVATE_TAG "private-qt-tag"
 #define GST_QT_DEMUX_CLASSIFICATION_TAG "classification"
@@ -113,6 +113,11 @@ struct _GstQTDemux {
 
   gboolean upstream_seekable;
   gint64 upstream_size;
+
+#ifdef INCLUDE_LMF
+  /*thumbnail flag*/
+  gboolean thumbnail_mode;
+#endif
 };
 
 struct _GstQTDemuxClass {
