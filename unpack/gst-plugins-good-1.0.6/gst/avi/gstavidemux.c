@@ -2254,6 +2254,15 @@ gst_avi_demux_parse_stream (GstAviDemux * avi, GstBuffer * buf)
         vprp = NULL;
       }
       caps = gst_avi_demux_check_caps (avi, caps, &stream->rgb8_palette);
+
+	  /*zeldasky*/
+	  gchar* format = NULL;
+
+	  format = g_strdup_printf("%c%c%c%c", GST_FOURCC_ARGS(fourcc));
+	  gst_caps_set_simple(caps, "format", G_TYPE_STRING, format, NULL);
+
+	  g_free(format);
+
       tag_name = GST_TAG_VIDEO_CODEC;
       avi->num_v_streams++;
       break;
@@ -2305,6 +2314,9 @@ gst_avi_demux_parse_stream (GstAviDemux * avi, GstBuffer * buf)
     GST_ERROR_OBJECT (element, "Did not find caps for stream %s", padname);
     goto fail;
   }
+
+  /* zeldasky */
+  gst_caps_set_simple(caps, "container", G_TYPE_STRING, "avi", NULL);
 
   GST_DEBUG_OBJECT (element, "codec-name=%s", codec_name ? codec_name : "NULL");
   GST_DEBUG_OBJECT (element, "caps=%" GST_PTR_FORMAT, caps);
