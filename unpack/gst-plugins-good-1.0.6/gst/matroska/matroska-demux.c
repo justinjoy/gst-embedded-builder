@@ -5067,6 +5067,11 @@ gst_matroska_demux_video_caps (GstMatroskaTrackVideoContext *
     caps = gst_caps_new_simple ("video/mpeg",
         "systemstream", G_TYPE_BOOLEAN, FALSE,
         "mpegversion", G_TYPE_INT, mpegversion, NULL);
+    // dongil.park 
+    // add fourcc value (mp2v)
+    if ( mpegversion == 2 ) {
+	gst_caps_set_simple (caps, "format", G_TYPE_STRING, "MP2V", NULL);
+    }
     *codec_name = g_strdup_printf ("MPEG-%d video", mpegversion);
     context->postprocess_frame = gst_matroska_demux_add_mpeg_seq_header;
   } else if (!strcmp (codec_id, GST_MATROSKA_CODEC_ID_VIDEO_MJPEG)) {
@@ -5089,6 +5094,8 @@ gst_matroska_demux_video_caps (GstMatroskaTrackVideoContext *
 
       gst_caps_set_simple (caps, "stream-format", G_TYPE_STRING, "avc",
           "alignment", G_TYPE_STRING, "au", NULL);
+      // dongil.park // add fourcc h264
+      gst_caps_set_simple (caps, "format", G_TYPE_STRING, "H264", NULL);
     } else {
       GST_WARNING ("No codec data found, assuming output is byte-stream");
       gst_caps_set_simple (caps, "stream-format", G_TYPE_STRING, "byte-stream",
@@ -5143,6 +5150,15 @@ gst_matroska_demux_video_caps (GstMatroskaTrackVideoContext *
   } else {
     GST_WARNING ("Unknown codec '%s', cannot build Caps", codec_id);
     return NULL;
+  }
+
+  /* dongil.park
+   * add caps (container, timstamptype) 
+   */
+  if (caps != NULL) {
+    gst_caps_set_simple (caps, "container", G_TYPE_STRING, "mkv",
+			    "timestamptype", G_TYPE_BOOLEAN, TRUE,
+			    NULL);
   }
 
   if (caps != NULL) {
