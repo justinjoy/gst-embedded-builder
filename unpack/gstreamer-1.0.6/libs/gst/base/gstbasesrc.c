@@ -157,7 +157,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#  include "config.h"
+#include "config.h"
 #endif
 
 #include <stdlib.h>
@@ -207,6 +207,10 @@ enum
   PROP_BLOCKSIZE,
   PROP_NUM_BUFFERS,
   PROP_TYPEFIND,
+#if 1
+  PROP_TRIGGER_TO_CHECK_DATA_AMOUNT_FOR_ASF,
+  PROP_TRIGGER_FOR_ASF_SIMPLE_INDEX,
+#endif
   PROP_DO_TIMESTAMP
 };
 
@@ -259,6 +263,10 @@ struct _GstBaseSrcPrivate
   GstAllocationParams params;
 
   GCond async_cond;
+#if 1
+  gboolean check_data_amount_for_asf;
+  gboolean check_need_simple_index_at_asf;
+#endif
 };
 
 static GstElementClass *parent_class = NULL;
@@ -384,6 +392,18 @@ gst_base_src_class_init (GstBaseSrcClass * klass)
       g_param_spec_boolean ("do-timestamp", "Do timestamp",
           "Apply current stream time to buffers", DEFAULT_DO_TIMESTAMP,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+#if 1
+  g_object_class_install_property (gobject_class,
+      PROP_TRIGGER_TO_CHECK_DATA_AMOUNT_FOR_ASF,
+      g_param_spec_boolean ("check-data-amount-for-asf",
+          "check-data-amount-for-asf", "check-data-amount-for-asf", FALSE,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class,
+      PROP_TRIGGER_FOR_ASF_SIMPLE_INDEX,
+      g_param_spec_boolean ("check-need-simple-index-at-asf",
+          "check-need-simple-index-at-asf", "check-need-simple-index-at-asf",
+          FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+#endif
 
   gstelement_class->change_state =
       GST_DEBUG_FUNCPTR (gst_base_src_change_state);
@@ -425,6 +445,11 @@ gst_base_src_init (GstBaseSrc * basesrc, gpointer g_class)
   basesrc->num_buffers_left = -1;
 
   basesrc->can_activate_push = TRUE;
+
+#if 1
+  basesrc->priv->check_data_amount_for_asf = FALSE;
+  basesrc->priv->check_need_simple_index_at_asf = FALSE;
+#endif
 
   pad_template =
       gst_element_class_get_pad_template (GST_ELEMENT_CLASS (g_class), "src");
@@ -1620,7 +1645,17 @@ gst_base_src_perform_seek (GstBaseSrc * src, GstEvent * event, gboolean unlock)
 
     /* do the seek, segment.position contains the new position. */
     res = gst_base_src_do_seek (src, &seeksegment);
+#if 1
+    if (src->priv->check_need_simple_index_at_asf && seeksegment.start == stop) {
+      tevent = gst_event_new_get_index_end_for_asf ();
+      gst_pad_push_event (src->srcpad, tevent);
+
+      src->priv->check_need_simple_index_at_asf = FALSE;
+      GST_INFO_OBJECT (src, "Sending resume event to asf demux.");
+    }
+#endif
   }
+
 
   /* and prepare to continue streaming */
   if (flush) {
@@ -1662,6 +1697,15 @@ gst_base_src_perform_seek (GstBaseSrc * src, GstEvent * event, gboolean unlock)
       stop = seeksegment.duration;
 
     src->priv->segment_pending = TRUE;
+#if 1
+    if (src->priv->check_need_simple_index_at_asf && seeksegment.start == stop) {
+      tevent = gst_event_new_get_index_end_for_asf ();
+      gst_pad_push_event (src->srcpad, tevent);
+
+      src->priv->check_need_simple_index_at_asf = FALSE;
+      GST_INFO_OBJECT (src, "Sending resume event to asf demux.");
+    }
+#endif
   }
 
   src->priv->discont = TRUE;
@@ -1889,12 +1933,38 @@ gst_base_src_default_event (GstBaseSrc * src, GstEvent * event)
 
   switch (GST_EVENT_TYPE (event)) {
     case GST_EVENT_SEEK:
+#if 1
+      src->priv->check_data_amount_for_asf = FALSE;
+#endif
       /* is normally called when in push mode */
       if (!gst_base_src_seekable (src))
         goto not_seekable;
 
       result = gst_base_src_perform_seek (src, event, TRUE);
+#if 1
+      src->priv->check_need_simple_index_at_asf = FALSE;
+#endif
       break;
+#if 1
+    case GST_EVENT_GET_INDEX_ENOUGH_DATA_FOR_ASF:
+      src->priv->check_data_amount_for_asf = TRUE;
+      GST_INFO_OBJECT (src, "receive from wmv seek event for dlna mode :  %d\n",
+          src->priv->check_data_amount_for_asf);
+      result = TRUE;
+      break;
+    case GST_EVENT_GET_INDEX_START_FOR_ASF:
+      src->priv->check_need_simple_index_at_asf = TRUE;
+      GST_INFO_OBJECT (src, "receive from asf seek event for dlna mode :  %d\n",
+          src->priv->check_need_simple_index_at_asf);
+      result = TRUE;
+      break;
+    case GST_EVENT_GET_INDEX_MORE_DATA_NEED_FOR_ASF:
+      src->priv->check_need_simple_index_at_asf = TRUE;
+      GST_INFO_OBJECT (src, "receive from asf seek event for dlna mode :  %d\n",
+          src->priv->check_need_simple_index_at_asf);
+      result = TRUE;
+      break;
+#endif
     case GST_EVENT_FLUSH_START:
       /* cancel any blocking getrange, is normally called
        * when in pull mode. */
@@ -1983,6 +2053,14 @@ gst_base_src_set_property (GObject * object, guint prop_id,
     case PROP_DO_TIMESTAMP:
       gst_base_src_set_do_timestamp (src, g_value_get_boolean (value));
       break;
+#if 1
+    case PROP_TRIGGER_TO_CHECK_DATA_AMOUNT_FOR_ASF:
+      src->priv->check_data_amount_for_asf = g_value_get_boolean (value);
+      break;
+    case PROP_TRIGGER_FOR_ASF_SIMPLE_INDEX:
+      src->priv->check_need_simple_index_at_asf = g_value_get_boolean (value);
+      break;
+#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -2010,6 +2088,14 @@ gst_base_src_get_property (GObject * object, guint prop_id, GValue * value,
     case PROP_DO_TIMESTAMP:
       g_value_set_boolean (value, gst_base_src_get_do_timestamp (src));
       break;
+#if 1
+    case PROP_TRIGGER_TO_CHECK_DATA_AMOUNT_FOR_ASF:
+      g_value_set_boolean (value, src->priv->check_data_amount_for_asf);
+      break;
+    case PROP_TRIGGER_FOR_ASF_SIMPLE_INDEX:
+      g_value_set_boolean (value, src->priv->check_need_simple_index_at_asf);
+      break;
+#endif
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -2573,6 +2659,17 @@ gst_base_src_loop (GstPad * pad)
 
   src = GST_BASE_SRC (GST_OBJECT_PARENT (pad));
 
+#if 1
+  if (src->priv->check_data_amount_for_asf &&   // pause loop task for wmv simple index parsing
+      GST_STATE (src) != GST_STATE_PAUSED) {
+    ret = GST_FLOW_CUSTOM_ERROR;
+    GST_INFO_OBJECT (src, "property : %d / states : %d",
+        src->priv->check_data_amount_for_asf, GST_STATE (src));
+    GST_INFO_OBJECT (src, "pausing task");
+    goto pause;
+  }
+#endif
+
   gst_base_src_send_stream_start (src);
 
   /* check if we need to renegotiate */
@@ -2791,9 +2888,23 @@ pause:
         gst_event_set_seqnum (event, src->priv->seqnum);
         gst_pad_push_event (pad, event);
       } else {
+#if 1                           // src could decide stream would be eos in case asf perfoem seek sometimes. This is for defence code.
+        if (src->priv->check_need_simple_index_at_asf) {
+          event = gst_event_new_get_index_end_for_asf ();
+          gst_pad_push_event (pad, event);
+
+          src->priv->check_need_simple_index_at_asf = FALSE;
+          GST_INFO_OBJECT (src, "Sending resume event to asf demux.");
+        } else {
+          event = gst_event_new_eos ();
+          gst_event_set_seqnum (event, src->priv->seqnum);
+          gst_pad_push_event (pad, event);
+        }
+#else
         event = gst_event_new_eos ();
         gst_event_set_seqnum (event, src->priv->seqnum);
         gst_pad_push_event (pad, event);
+#endif
       }
     } else if (ret == GST_FLOW_NOT_LINKED || ret <= GST_FLOW_EOS) {
       event = gst_event_new_eos ();
