@@ -85,7 +85,7 @@
 #define QTDEMUX_LEAP_YEARS_FROM_1904_TO_1970 17
 #define QTDEMUX_SECONDS_FROM_1904_TO_1970 (((1970 - 1904) * (guint64) 365 + \
     QTDEMUX_LEAP_YEARS_FROM_1904_TO_1970) * QTDEMUX_SECONDS_PER_DAY)
-#define INCLUDE_LMF
+
 GST_DEBUG_CATEGORY (qtdemux_debug);
 
 /*typedef struct _QtNode QtNode; */
@@ -7379,8 +7379,9 @@ qtdemux_parse_trak (GstQTDemux * qtdemux, GNode * trak)
             enda = qtdemux_tree_get_child_by_type (wave, FOURCC_enda);
         }
         if (enda) {
+          int enda_value = QT_UINT16 ((guint8 *) enda->data + 8);
           gst_caps_set_simple (stream->caps,
-              "format", G_TYPE_STRING, "S24LE", NULL);
+              "format", G_TYPE_STRING, (enda_value) ? "S24LE" : "S24BE", NULL);
         }
         break;
       }
